@@ -1,0 +1,23 @@
+{
+  "brandYellow": "#FEC602",
+  "bg0": "#050613",
+  "surface1": "#10111D",
+  "surface2": "#191A26",
+  "surface3": "#23242F",
+  "stroke": "#14FFFFFF",
+  "primary": "#FEC602",
+  "primaryPressed": "#E0AE02",
+  "primaryContainer": "#2A2411",
+  "onPrimary": "#050613",
+  "textHigh": "#EBFFFFFF",
+  "textMid": "#A3FFFFFF",
+  "textLow": "#66FFFFFF",
+  "success": "#34D399",
+  "danger": "#FF5C7A",
+  "disabledFill": "#22232E",
+  "onDisabledFill": "#8E9099",
+  "disabledForeground": "#8A8C95",
+  "disabledStroke": "#6E7079",
+  "scrim": "#99000000",
+  "navBarSurface": "#F510111D"
+}

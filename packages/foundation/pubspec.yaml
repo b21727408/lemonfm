@@ -1,0 +1,7 @@
+name: foundation
+description: Domain-neutral primitives for Lemon.fm packages.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: '>=3.13.2 <4.0.0'
+resolution: workspace

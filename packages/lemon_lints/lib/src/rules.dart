@@ -1,0 +1,321 @@
+import 'package:analyzer/analysis_rule/analysis_rule.dart';
+import 'package:analyzer/analysis_rule/rule_context.dart';
+import 'package:analyzer/analysis_rule/rule_visitor_registry.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/error/error.dart';
+
+import 'generated/module_policy.dart';
+
+String _path(RuleContext context) =>
+    context.definingUnit.file.path.replaceAll('\\', '/');
+
+bool _isLayer(String path, String layer) => path.contains('/lib/src/$layer/');
+
+String? _featureName(String path) {
+  final match = RegExp(r'/packages/features/([^/]+)/').firstMatch(path);
+  return match?.group(1);
+}
+
+String? _packageName(String uri) {
+  if (!uri.startsWith('package:')) return null;
+  return uri.substring('package:'.length).split('/').first;
+}
+
+abstract base class _LemonRule extends AnalysisRule {
+  _LemonRule({required super.name, required super.description});
+}
+
+final class LemonLayerBoundaryRule extends _LemonRule {
+  static const LintCode code = LintCode(
+    'lemon_layer_boundary',
+    '{0}',
+    uniqueName: 'LintCode.lemon_layer_boundary',
+  );
+
+  LemonLayerBoundaryRule()
+    : super(
+        name: 'lemon_layer_boundary',
+        description: 'Enforces feature and pure-domain import boundaries.',
+      );
+
+  @override
+  DiagnosticCode get diagnosticCode => code;
+
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
+  ) {
+    final path = _path(context);
+    final feature = _featureName(path);
+    if (feature == null) return;
+    registry.addImportDirective(
+      this,
+      _LayerImportVisitor(this, feature, isDomain: _isLayer(path, 'domain')),
+    );
+  }
+}
+
+final class _LayerImportVisitor extends SimpleAstVisitor<void> {
+  _LayerImportVisitor(this.rule, this.feature, {required this.isDomain});
+
+  final AnalysisRule rule;
+  final String feature;
+  final bool isDomain;
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    final uri = node.uri.stringValue;
+    if (uri == null) return;
+    final importedPackage = _packageName(uri);
+    if (isDomain &&
+        (importedPackage == 'flutter' ||
+            importedPackage == 'flutter_riverpod' ||
+            importedPackage == 'riverpod')) {
+      rule.reportAtNode(
+        node,
+        arguments: ['domain code cannot import Flutter or Riverpod'],
+      );
+    }
+    if (importedPackage != null &&
+        importedPackage != feature &&
+        featurePackages.contains(importedPackage) &&
+        uri.startsWith('package:$importedPackage/src/')) {
+      rule.reportAtNode(
+        node,
+        arguments: [
+          '$feature cannot import another feature\'s private src/ API: $uri',
+        ],
+      );
+    }
+  }
+}
+
+final class LemonDesignTokenBoundaryRule extends _LemonRule {
+  static const LintCode code = LintCode(
+    'lemon_design_token_boundary',
+    'Raw design value outside lemon_ui: {0}',
+    uniqueName: 'LintCode.lemon_design_token_boundary',
+  );
+
+  LemonDesignTokenBoundaryRule()
+    : super(
+        name: 'lemon_design_token_boundary',
+        description: 'Requires generated Lemon design tokens outside lemon_ui.',
+      );
+
+  @override
+  DiagnosticCode get diagnosticCode => code;
+
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
+  ) {
+    if (_path(context).contains('/packages/lemon_ui/')) return;
+    registry.addInstanceCreationExpression(this, _DesignValueVisitor(this));
+  }
+}
+
+final class _DesignValueVisitor extends SimpleAstVisitor<void> {
+  _DesignValueVisitor(this.rule);
+
+  static const tokenOwnedTypes = {
+    'Color',
+    'TextStyle',
+    'Radius',
+    'BorderRadius',
+    'EdgeInsets',
+    'EdgeInsetsDirectional',
+    'Duration',
+  };
+
+  final AnalysisRule rule;
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    final type = node.constructorName.type.name.lexeme;
+    if (tokenOwnedTypes.contains(type)) {
+      rule.reportAtNode(node, arguments: ['$type constructor']);
+      return;
+    }
+    if (type == 'SizedBox' &&
+        node.argumentList.arguments.any(_containsNumericLiteral)) {
+      rule.reportAtNode(node, arguments: ['numeric SizedBox spacing']);
+    }
+  }
+
+  static bool _containsNumericLiteral(Argument argument) {
+    final value = argument.argumentExpression;
+    return value is IntegerLiteral || value is DoubleLiteral;
+  }
+}
+
+final class LemonWidgetTextBoundaryRule extends _LemonRule {
+  static const LintCode code = LintCode(
+    'lemon_widget_text_boundary',
+    'User-facing widget text must come from slang, not a string literal.',
+    uniqueName: 'LintCode.lemon_widget_text_boundary',
+  );
+
+  LemonWidgetTextBoundaryRule()
+    : super(
+        name: 'lemon_widget_text_boundary',
+        description: 'Forbids user-facing string literals in widgets.',
+      );
+
+  @override
+  DiagnosticCode get diagnosticCode => code;
+
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
+  ) {
+    registry.addSimpleStringLiteral(this, _WidgetTextVisitor(this));
+  }
+}
+
+final class _WidgetTextVisitor extends SimpleAstVisitor<void> {
+  _WidgetTextVisitor(this.rule);
+
+  static const textConstructors = {
+    'Text',
+    'TextSpan',
+    'SelectableText',
+    'InputDecoration',
+    'Semantics',
+    'Tooltip',
+    'BottomNavigationBarItem',
+  };
+
+  final AnalysisRule rule;
+
+  @override
+  void visitSimpleStringLiteral(SimpleStringLiteral node) {
+    AstNode? ancestor = node.parent;
+    while (ancestor != null && ancestor is! FunctionBody) {
+      if (ancestor is InstanceCreationExpression &&
+          textConstructors.contains(
+            ancestor.constructorName.type.name.lexeme,
+          )) {
+        rule.reportAtNode(node);
+        return;
+      }
+      ancestor = ancestor.parent;
+    }
+  }
+}
+
+final class LemonVendorBoundaryRule extends _LemonRule {
+  static const LintCode code = LintCode(
+    'lemon_vendor_boundary',
+    'Feature package {0} cannot import vendor package {1}; use its declared technical boundary.',
+    uniqueName: 'LintCode.lemon_vendor_boundary',
+  );
+
+  LemonVendorBoundaryRule()
+    : super(
+        name: 'lemon_vendor_boundary',
+        description: 'Keeps vendor SDKs behind declared technical packages.',
+      );
+
+  @override
+  DiagnosticCode get diagnosticCode => code;
+
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
+  ) {
+    final feature = _featureName(_path(context));
+    if (feature == null) return;
+    registry.addImportDirective(this, _VendorImportVisitor(this, feature));
+  }
+}
+
+final class _VendorImportVisitor extends SimpleAstVisitor<void> {
+  _VendorImportVisitor(this.rule, this.feature);
+
+  static const frameworkPackages = {'flutter', 'flutter_riverpod', 'riverpod'};
+
+  final AnalysisRule rule;
+  final String feature;
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    final package = _packageName(node.uri.stringValue ?? '');
+    if (package == null ||
+        package == feature ||
+        frameworkPackages.contains(package) ||
+        allowedPackageDependencies[feature]!.contains(package)) {
+      return;
+    }
+    rule.reportAtNode(node, arguments: [feature, package]);
+  }
+}
+
+final class LemonDeterminismBoundaryRule extends _LemonRule {
+  static const LintCode code = LintCode(
+    'lemon_determinism_boundary',
+    'Ambient non-determinism is forbidden in domain/application: {0}.',
+    uniqueName: 'LintCode.lemon_determinism_boundary',
+  );
+
+  LemonDeterminismBoundaryRule()
+    : super(
+        name: 'lemon_determinism_boundary',
+        description:
+            'Requires injected clocks, random sources, and platform data.',
+      );
+
+  @override
+  DiagnosticCode get diagnosticCode => code;
+
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
+  ) {
+    final path = _path(context);
+    if (!_isLayer(path, 'domain') && !_isLayer(path, 'application')) return;
+    final visitor = _DeterminismVisitor(this);
+    registry
+      ..addInstanceCreationExpression(this, visitor)
+      ..addMethodInvocation(this, visitor)
+      ..addPrefixedIdentifier(this, visitor);
+  }
+}
+
+final class _DeterminismVisitor extends SimpleAstVisitor<void> {
+  _DeterminismVisitor(this.rule);
+
+  final AnalysisRule rule;
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    final constructor = node.constructorName;
+    if (constructor.type.name.lexeme == 'Random') {
+      rule.reportAtNode(node, arguments: ['Random()']);
+    } else if (constructor.type.name.lexeme == 'DateTime' &&
+        constructor.name?.name == 'now') {
+      rule.reportAtNode(node, arguments: ['DateTime.now()']);
+    }
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (node.target?.toSource() == 'DateTime' &&
+        node.methodName.name == 'now') {
+      rule.reportAtNode(node, arguments: ['DateTime.now()']);
+    }
+  }
+
+  @override
+  void visitPrefixedIdentifier(PrefixedIdentifier node) {
+    if (node.prefix.name == 'Platform') {
+      rule.reportAtNode(node, arguments: ['Platform.${node.identifier.name}']);
+    }
+  }
+}

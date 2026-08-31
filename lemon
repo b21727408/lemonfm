@@ -5,6 +5,97 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 GRADLE="$ROOT/gradlew"
+FLUTTER_VERSION="3.47.2"
+
+resolve_flutter() {
+  if [[ -n "${LEMON_FLUTTER_BIN:-}" ]]; then
+    printf '%s\n' "$LEMON_FLUTTER_BIN"
+    return
+  fi
+  local windows_cache="${USERPROFILE:-}/.cache/lemon/flutter-$FLUTTER_VERSION/flutter/bin/flutter.bat"
+  if [[ -f "$windows_cache" ]]; then
+    printf '%s\n' "$windows_cache"
+    return
+  fi
+  if command -v flutter >/dev/null 2>&1; then
+    command -v flutter
+    return
+  fi
+  echo "Flutter $FLUTTER_VERSION is required; set LEMON_FLUTTER_BIN to its executable" >&2
+  exit 69
+}
+
+FLUTTER="$(resolve_flutter)"
+if [[ "$FLUTTER" == *.bat ]]; then
+  DART="${FLUTTER%flutter.bat}dart.bat"
+else
+  DART="${FLUTTER%flutter}dart"
+fi
+
+verify_flutter() {
+  local version
+  version="$("$FLUTTER" --version --machine)"
+  if ! grep -Eq '"frameworkVersion"[[:space:]]*:[[:space:]]*"3\.47\.2"' <<<"$version"; then
+    echo "Expected Flutter $FLUTTER_VERSION; LEMON_FLUTTER_BIN resolved to $FLUTTER" >&2
+    exit 69
+  fi
+  if ! grep -Eq '"dartSdkVersion"[[:space:]]*:[[:space:]]*"3\.13\.2"' <<<"$version"; then
+    echo "Flutter $FLUTTER_VERSION must contain Dart 3.13.2" >&2
+    exit 69
+  fi
+}
+
+flutter_pub_get() {
+  verify_flutter
+  "$FLUTTER" pub get --enforce-lockfile
+}
+
+dart_sources=(
+  apps
+  packages/foundation
+  packages/lemon_lints
+  packages/lemon_ui
+  packages/telemetry
+  packages/realtime_client
+  packages/secure_store
+  packages/features
+)
+
+flutter_fast() {
+  architecture validate
+  flutter_pub_get
+  "$DART" format --output=none --set-exit-if-changed "${dart_sources[@]}"
+  "$FLUTTER" analyze --fatal-infos --fatal-warnings
+}
+
+flutter_test() {
+  flutter_pub_get
+  "$FLUTTER" test packages/lemon_ui/test
+}
+
+build_smoke() {
+  architecture validate
+  flutter_pub_get
+  "$GRADLE" :backend:bootJar
+  local targets="${LEMON_BUILD_TARGETS:-}"
+  if [[ -z "$targets" ]]; then
+    if [[ "$(uname -s)" == Darwin ]]; then
+      targets="ios,web"
+    else
+      targets="android,web"
+    fi
+  fi
+  if [[ ",$targets," == *,android,* ]]; then
+    (cd "$ROOT/apps/mobile" && "$FLUTTER" build apk --debug)
+  fi
+  if [[ ",$targets," == *,ios,* ]]; then
+    (cd "$ROOT/apps/mobile" && "$FLUTTER" build ios --simulator --no-codesign)
+  fi
+  if [[ ",$targets," == *,web,* ]]; then
+    (cd "$ROOT/apps/moderation" && "$FLUTTER" build web)
+    (cd "$ROOT/apps/widgetbook" && "$FLUTTER" build web)
+  fi
+}
 
 architecture() {
   "$GRADLE" --quiet :tooling:architecture:run --args="$*"
@@ -15,6 +106,10 @@ case "${1:-}" in
     architecture generate
     "$GRADLE" :backend:generateJooq :backend:generateContractBindings
     architecture "contract-manifest generate"
+    verify_flutter
+    "$DART" format \
+      packages/lemon_lints/lib/src/generated/module_policy.dart \
+      packages/lemon_ui/lib/src/generated/tokens.dart
     ;;
   check)
     scope="${3:-all}"
@@ -29,6 +124,9 @@ case "${1:-}" in
         architecture validate
         "$GRADLE" :backend:check
         ;;
+      flutter-fast)
+        flutter_fast
+        ;;
       postgres-integration)
         architecture validate
         "$GRADLE" :backend:postgresIntegrationTest
@@ -39,9 +137,22 @@ case "${1:-}" in
         architecture "contract-manifest check"
         architecture "openapi-breaking ${LEMON_API_BASE_REF:-origin/main}"
         ;;
+      repository-security)
+        architecture "check policy"
+        flutter_pub_get
+        "$GRADLE" dependencies --write-locks
+        git diff --exit-code -- '**/gradle.lockfile' pubspec.lock gradle/verification-metadata.xml
+        ;;
+      build-smoke)
+        build_smoke
+        ;;
       all)
         architecture "check all"
         "$GRADLE" :backend:contractsCheck :backend:check :backend:postgresIntegrationTest
+        architecture "openapi-breaking ${LEMON_API_BASE_REF:-origin/main}"
+        flutter_fast
+        flutter_test
+        build_smoke
         ;;
       *)
         echo "unknown check scope: $scope" >&2
@@ -52,11 +163,13 @@ case "${1:-}" in
   test)
     architecture validate
     "$GRADLE" test :backend:postgresIntegrationTest
+    flutter_test
     ;;
   fix)
     architecture generate
-    "$GRADLE" spotlessApply
-    dart format .
+    "$GRADLE" :backend:spotlessApply
+    verify_flutter
+    "$DART" format "${dart_sources[@]}"
     ;;
   dev)
     docker compose up -d postgres

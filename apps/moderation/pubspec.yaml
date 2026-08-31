@@ -1,0 +1,22 @@
+name: moderation
+description: Lemon.fm web-only internal moderation shell.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  admin_api_client:
+    path: ../../packages/admin_api_client
+  foundation:
+    path: ../../packages/foundation
+  lemon_ui:
+    path: ../../packages/lemon_ui
+
+flutter:
+  uses-material-design: false

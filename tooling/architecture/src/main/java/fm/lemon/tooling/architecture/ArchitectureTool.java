@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -254,6 +255,154 @@ public final class ArchitectureTool {
                                         entry.getValue().path("dependencies"),
                                         appTargets,
                                         Set.of("all_features")));
+
+        if (Files.isRegularFile(root.resolve("pubspec.yaml"))) {
+            validateFlutterWorkspace(flutter, features);
+        }
+    }
+
+    private void validateFlutterWorkspace(JsonNode flutter, Set<String> features) {
+        Map<String, Path> expectedMembers = new TreeMap<>();
+        addFlutterMemberPaths(expectedMembers, flutter.path("packages"), Path.of("packages"));
+        addFlutterMemberPaths(
+                expectedMembers, flutter.path("features"), Path.of("packages", "features"));
+        addFlutterMemberPaths(expectedMembers, flutter.path("apps"), Path.of("apps"));
+
+        JsonNode workspace;
+        try {
+            workspace = YAML.readTree(root.resolve("pubspec.yaml").toFile());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Cannot read root pubspec.yaml", exception);
+        }
+
+        Set<String> expectedPaths = new LinkedHashSet<>();
+        expectedMembers.values().stream().map(ArchitectureTool::slash).forEach(expectedPaths::add);
+        Set<String> actualPaths = textValues(workspace.path("workspace"));
+        if (!expectedPaths.equals(actualPaths)) {
+            fail(
+                    "Dart workspace members differ from architecture/modules.yaml; expected "
+                            + expectedPaths
+                            + " but found "
+                            + actualPaths);
+        }
+
+        Set<String> allUnits = expectedMembers.keySet();
+        Map<String, Set<String>> expectedDependencies = new TreeMap<>();
+        collectFlutterDependencySets(
+                expectedDependencies, flutter.path("packages"), Set.of());
+        collectFlutterDependencySets(
+                expectedDependencies, flutter.path("features"), Set.of());
+        collectFlutterDependencySets(expectedDependencies, flutter.path("apps"), features);
+
+        expectedMembers.forEach(
+                (name, relativePath) -> {
+                    Path pubspecPath = root.resolve(relativePath).resolve("pubspec.yaml");
+                    if (!Files.isRegularFile(pubspecPath)) {
+                        fail("Declared Dart workspace package is missing " + slash(pubspecPath));
+                    }
+                    JsonNode pubspec;
+                    try {
+                        pubspec = YAML.readTree(pubspecPath.toFile());
+                    } catch (IOException exception) {
+                        throw new IllegalStateException(
+                                "Cannot read " + slash(root.relativize(pubspecPath)), exception);
+                    }
+                    String location = slash(root.relativize(pubspecPath));
+                    if (!name.equals(pubspec.path("name").asText())) {
+                        fail(location + ": package name must be " + name);
+                    }
+                    if (!"workspace".equals(pubspec.path("resolution").asText())) {
+                        fail(location + ": resolution must be workspace");
+                    }
+
+                    JsonNode dependencies = pubspec.path("dependencies");
+                    Set<String> actualInternal = internalDependencies(dependencies, allUnits);
+                    Set<String> expectedInternal = expectedDependencies.getOrDefault(name, Set.of());
+                    if (!expectedInternal.equals(actualInternal)) {
+                        fail(
+                                location
+                                        + ": internal dependencies differ from architecture/modules.yaml; expected "
+                                        + expectedInternal
+                                        + " but found "
+                                        + actualInternal);
+                    }
+
+                    Set<String> nonRuntimeInternal = new TreeSet<>();
+                    nonRuntimeInternal.addAll(
+                            internalDependencies(pubspec.path("dev_dependencies"), allUnits));
+                    nonRuntimeInternal.addAll(
+                            internalDependencies(pubspec.path("dependency_overrides"), allUnits));
+                    if (!nonRuntimeInternal.isEmpty()) {
+                        fail(
+                                location
+                                        + ": internal workspace dependencies must be declared in dependencies and modules.yaml, not dev_dependencies/dependency_overrides: "
+                                        + nonRuntimeInternal);
+                    }
+
+                    for (String dependency : expectedInternal) {
+                        JsonNode declaration = dependencies.path(dependency);
+                        if (!declaration.isObject() || !declaration.has("path")) {
+                            fail(location + ": " + dependency + " must be a local path dependency");
+                        }
+                        Path actualTarget =
+                                pubspecPath
+                                        .getParent()
+                                        .resolve(declaration.path("path").asText())
+                                        .toAbsolutePath()
+                                        .normalize();
+                        Path expectedTarget =
+                                root.resolve(expectedMembers.get(dependency))
+                                        .toAbsolutePath()
+                                        .normalize();
+                        if (!actualTarget.equals(expectedTarget)) {
+                            fail(
+                                    location
+                                            + ": "
+                                            + dependency
+                                            + " path resolves to "
+                                            + actualTarget
+                                            + " instead of "
+                                            + expectedTarget);
+                        }
+                    }
+                });
+    }
+
+    private static void addFlutterMemberPaths(
+            Map<String, Path> members, JsonNode definitions, Path parent) {
+        definitions.fieldNames().forEachRemaining(name -> members.put(name, parent.resolve(name)));
+    }
+
+    private static void collectFlutterDependencySets(
+            Map<String, Set<String>> units, JsonNode definitions, Set<String> allFeatures) {
+        definitions.fields()
+                .forEachRemaining(
+                        entry -> {
+                            Set<String> dependencies = new TreeSet<>();
+                            entry.getValue()
+                                    .path("dependencies")
+                                    .forEach(
+                                            dependency -> {
+                                                if (dependency.asText().equals("all_features")) {
+                                                    dependencies.addAll(allFeatures);
+                                                } else {
+                                                    dependencies.add(dependency.asText());
+                                                }
+                                            });
+                            units.put(entry.getKey(), dependencies);
+                        });
+    }
+
+    private static Set<String> internalDependencies(JsonNode declarations, Set<String> allUnits) {
+        Set<String> dependencies = new TreeSet<>();
+        declarations.fieldNames()
+                .forEachRemaining(
+                        name -> {
+                            if (allUnits.contains(name)) {
+                                dependencies.add(name);
+                            }
+                        });
+        return dependencies;
     }
 
     private static void validateDependencies(
@@ -684,6 +833,8 @@ public final class ArchitectureTool {
         outputs.put(
                 Path.of("packages/lemon_lints/lib/src/generated/module_policy.dart"),
                 flutterPolicyDart());
+        outputs.put(
+                Path.of("packages/lemon_ui/lib/src/generated/tokens.dart"), tokenDart());
         addBackendShells(outputs);
         outputs.put(Path.of("AGENTS.md"), agentsFile());
         return outputs;
@@ -811,6 +962,11 @@ public final class ArchitectureTool {
         StringBuilder output =
                 new StringBuilder("// GENERATED FILE — DO NOT EDIT.\n")
                         .append("// Generated by ./lemon generate from architecture/modules.yaml.\n\n")
+                        .append("const Set<String> featurePackages = {\n");
+        fieldNames(modules.path("flutter").path("features")).stream()
+                .sorted()
+                .forEach(feature -> output.append("  '").append(feature).append("',\n"));
+        output.append("};\n\n")
                         .append("const Map<String, Set<String>> allowedPackageDependencies = {\n");
         JsonNode flutter = modules.path("flutter");
         Map<String, List<String>> units = new TreeMap<>();
@@ -821,15 +977,159 @@ public final class ArchitectureTool {
         units.forEach(
                 (name, dependencies) -> {
                     output.append("  '").append(name).append("': {");
-                    for (int index = 0; index < dependencies.size(); index++) {
-                        if (index > 0) {
-                            output.append(", ");
+                    if (dependencies.size() >= 5) {
+                        output.append('\n');
+                        for (String dependency : dependencies) {
+                            output.append("    '").append(dependency).append("',\n");
                         }
-                        output.append("'").append(dependencies.get(index)).append("'");
+                        output.append("  ");
+                    } else {
+                        for (int index = 0; index < dependencies.size(); index++) {
+                            if (index > 0) {
+                                output.append(", ");
+                            }
+                            output.append("'").append(dependencies.get(index)).append("'");
+                        }
                     }
                     output.append("},\n");
                 });
         return output.append("};\n").toString();
+    }
+
+    private String tokenDart() throws IOException {
+        JsonNode colors = readToken("colors.json");
+        JsonNode geometry = readToken("geometry.json");
+        JsonNode motion = readToken("motion.json");
+        JsonNode typography = readToken("typography.json");
+
+        StringBuilder output =
+                new StringBuilder("// GENERATED FILE — DO NOT EDIT.\n")
+                        .append("// Generated by ./lemon generate from design/tokens/*.json.\n\n")
+                        .append("import 'package:flutter/widgets.dart';\n\n")
+                        .append("abstract final class LemonColors {\n");
+        colors.fields()
+                .forEachRemaining(
+                        entry ->
+                                output.append("  static const Color ")
+                                        .append(dartIdentifier(entry.getKey()))
+                                        .append(" = Color(0x")
+                                        .append(dartColor(entry.getValue().asText()))
+                                        .append(");\n"));
+        output.append("}\n\n");
+        appendDoubleTokens(output, "LemonSpacing", geometry.path("spacing"));
+        appendDoubleTokens(output, "LemonRadius", geometry.path("radius"));
+        appendDoubleTokens(output, "LemonDimensions", geometry.path("dimension"));
+
+        output.append("abstract final class LemonDurations {\n");
+        motion.path("durationMs")
+                .fields()
+                .forEachRemaining(
+                        entry ->
+                                output.append("  static const Duration ")
+                                        .append(dartIdentifier(entry.getKey()))
+                                        .append(" = Duration(milliseconds: ")
+                                        .append(entry.getValue().intValue())
+                                        .append(");\n"));
+        output.append("}\n\n");
+        appendStringTokens(output, "LemonCurves", motion.path("curve"));
+        appendDoubleTokens(output, "LemonCelebrationSpring", motion.path("celebrationSpring"));
+
+        output.append("final class LemonTextToken {\n")
+                .append("  const LemonTextToken({\n")
+                .append("    required this.size,\n")
+                .append("    required this.lineHeight,\n")
+                .append("    required this.weight,\n")
+                .append("    this.minimumSize,\n")
+                .append("    this.minimumLineHeight,\n")
+                .append("  });\n\n")
+                .append("  final double size;\n")
+                .append("  final double lineHeight;\n")
+                .append("  final int weight;\n")
+                .append("  final double? minimumSize;\n")
+                .append("  final double? minimumLineHeight;\n")
+                .append("}\n\n")
+                .append("abstract final class LemonTypography {\n");
+        typography.path("family")
+                .fields()
+                .forEachRemaining(
+                        entry ->
+                                output.append("  static const String ")
+                                        .append(dartIdentifier(entry.getKey()))
+                                        .append("Family = '")
+                                        .append(entry.getValue().asText())
+                                        .append("';\n"));
+        typography.path("style")
+                .fields()
+                .forEachRemaining(
+                        entry -> {
+                            JsonNode style = entry.getValue();
+                            output.append("  static const LemonTextToken ")
+                                    .append(dartIdentifier(entry.getKey()))
+                                    .append(" = LemonTextToken(\n")
+                                    .append("    size: ")
+                                    .append(style.path("size").asText())
+                                    .append(",\n    lineHeight: ")
+                                    .append(style.path("lineHeight").asText())
+                                    .append(",\n    weight: ")
+                                    .append(style.path("weight").asText());
+                            if (style.has("minimumSize")) {
+                                output.append(",\n    minimumSize: ")
+                                        .append(style.path("minimumSize").asText())
+                                        .append(",\n    minimumLineHeight: ")
+                                        .append(style.path("minimumLineHeight").asText());
+                            }
+                            output.append(",\n  );\n");
+                        });
+        return output.append("}\n").toString();
+    }
+
+    private JsonNode readToken(String name) throws IOException {
+        Path path = root.resolve("design/tokens").resolve(name);
+        if (!Files.isRegularFile(path)) {
+            fail("Missing authored design token file " + slash(root.relativize(path)));
+        }
+        return JSON.readTree(path.toFile());
+    }
+
+    private static void appendDoubleTokens(StringBuilder output, String className, JsonNode values) {
+        output.append("abstract final class ").append(className).append(" {\n");
+        values.fields()
+                .forEachRemaining(
+                        entry ->
+                                output.append("  static const double ")
+                                        .append(dartIdentifier(entry.getKey()))
+                                        .append(" = ")
+                                        .append(entry.getValue().asText())
+                                        .append(";\n"));
+        output.append("}\n\n");
+    }
+
+    private static void appendStringTokens(StringBuilder output, String className, JsonNode values) {
+        output.append("abstract final class ").append(className).append(" {\n");
+        values.fields()
+                .forEachRemaining(
+                        entry ->
+                                output.append("  static const String ")
+                                        .append(dartIdentifier(entry.getKey()))
+                                        .append(" = '")
+                                        .append(entry.getValue().asText())
+                                        .append("';\n"));
+        output.append("}\n\n");
+    }
+
+    private static String dartColor(String value) {
+        if (!value.matches("#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{8}")) {
+            fail("Invalid color token " + value);
+        }
+        String hex = value.substring(1).toUpperCase();
+        return hex.length() == 6 ? "FF" + hex : hex;
+    }
+
+    private static String dartIdentifier(String value) {
+        if (!value.matches("[a-z][A-Za-z0-9]*")) {
+            fail("Token name is not a lowerCamel Dart identifier: " + value);
+        }
+        return value;
     }
 
     private static void collectFlutterDependencies(
