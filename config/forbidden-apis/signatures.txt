@@ -1,0 +1,8 @@
+@defaultMessage Use an injected deterministic boundary instead.
+java.lang.System#out
+java.lang.System#currentTimeMillis()
+java.lang.Math#random()
+java.lang.Thread#sleep(long)
+java.util.Date#<init>()
+java.util.Locale#getDefault()
+java.util.TimeZone#getDefault()

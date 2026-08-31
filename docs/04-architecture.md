@@ -154,6 +154,13 @@ The custom verifier does not filter violation messages or use framework
 internals: it consumes Spring Modulith's public dependency type, source type,
 target type and target-module model.
 
+Spring Modulith reports the event payload type reference as a `DEFAULT`
+dependency beside `EVENT_LISTENER`. The verifier treats that companion fact as
+subscription coupling only when source type, target type and target module are
+identical. Every other `DEFAULT` dependency remains call-capable and requires a
+declared `calls` edge. Focused fixtures pin this classification for the selected
+Modulith version.
+
 **ArchUnit** verifies the inside of a module: `domain` importing no framework,
 layer direction, no cross-module type references.
 

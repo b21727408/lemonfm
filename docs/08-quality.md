@@ -167,6 +167,10 @@ declared `subscribes`. Only the synchronous `calls` graph is acyclic. A
 subscription may point back toward a caller and never grants call permission.
 The repository does not use unqualified `ApplicationModules.verify()` as the
 graph gate because its combined cycle model cannot represent this policy.
+The selected Modulith version's companion `DEFAULT` fact for an event payload is
+treated as subscription coupling only when its source type, target type and
+target module exactly match an `EVENT_LISTENER` fact; structural fixtures prove
+that classification. Other `DEFAULT` facts require call permission.
 
 **ArchUnit** — inside a module: `domain` importing no Spring, no jOOQ, no
 Jackson, no HTTP, no other module; layer direction `infrastructure → application

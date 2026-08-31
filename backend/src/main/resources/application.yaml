@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: lemon-backend
+  modulith:
+    detection-strategy: explicitly-annotated
+  datasource:
+    url: ${LEMON_DATABASE_URL:jdbc:postgresql://localhost:5432/lemon}
+    username: ${LEMON_DATABASE_USER:lemon}
+    password: ${LEMON_DATABASE_PASSWORD:lemon}
+  flyway:
+    enabled: false

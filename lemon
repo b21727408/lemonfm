@@ -19,7 +19,23 @@ case "${1:-}" in
     if [[ "${2:-}" != "--scope" ]]; then
       scope="all"
     fi
-    architecture "check $scope"
+    case "$scope" in
+      policy|generated)
+        architecture "check $scope"
+        ;;
+      backend-fast)
+        architecture validate
+        "$GRADLE" :backend:check
+        ;;
+      all)
+        architecture "check all"
+        "$GRADLE" :backend:check
+        ;;
+      *)
+        echo "unknown check scope: $scope" >&2
+        exit 64
+        ;;
+    esac
     ;;
   test)
     architecture validate
