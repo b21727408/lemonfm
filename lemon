@@ -13,6 +13,7 @@ architecture() {
 case "${1:-}" in
   generate)
     architecture generate
+    "$GRADLE" :backend:generateJooq
     ;;
   check)
     scope="${3:-all}"
@@ -27,9 +28,13 @@ case "${1:-}" in
         architecture validate
         "$GRADLE" :backend:check
         ;;
+      postgres-integration)
+        architecture validate
+        "$GRADLE" :backend:postgresIntegrationTest
+        ;;
       all)
         architecture "check all"
-        "$GRADLE" :backend:check
+        "$GRADLE" :backend:check :backend:postgresIntegrationTest
         ;;
       *)
         echo "unknown check scope: $scope" >&2
@@ -39,7 +44,7 @@ case "${1:-}" in
     ;;
   test)
     architecture validate
-    "$GRADLE" test
+    "$GRADLE" test :backend:postgresIntegrationTest
     ;;
   fix)
     architecture generate

@@ -1,0 +1,10 @@
+CREATE SCHEMA identity;
+CREATE SCHEMA profile;
+CREATE SCHEMA quiz;
+CREATE SCHEMA discovery;
+CREATE SCHEMA messaging;
+CREATE SCHEMA safety;
+CREATE SCHEMA commerce;
+CREATE SCHEMA content;
+CREATE SCHEMA media;
+CREATE SCHEMA notification;

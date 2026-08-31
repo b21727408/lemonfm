@@ -19,7 +19,7 @@ dependencies {
 
 spotless {
     java {
-        target("src/**/*.java")
+        target("src/main/java/**/*.java", "src/test/java/**/*.java")
         googleJavaFormat("1.36.1")
         formatAnnotations()
     }

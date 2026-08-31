@@ -8,4 +8,8 @@ spring:
     username: ${LEMON_DATABASE_USER:lemon}
     password: ${LEMON_DATABASE_PASSWORD:lemon}
   flyway:
-    enabled: false
+    enabled: true
+    create-schemas: true
+    default-schema: platform
+    schemas: platform
+    locations: classpath:db/migration
