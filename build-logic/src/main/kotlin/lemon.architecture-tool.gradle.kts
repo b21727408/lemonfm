@@ -1,6 +1,7 @@
 plugins {
     application
     java
+    id("com.diffplug.spotless")
 }
 
 application {
@@ -10,6 +11,14 @@ application {
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+spotless {
+    java {
+        target("src/main/java/**/*.java")
+        googleJavaFormat("1.36.1")
+        formatAnnotations()
     }
 }
 

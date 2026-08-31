@@ -25,14 +25,18 @@ resolve_flutter() {
   exit 69
 }
 
-FLUTTER="$(resolve_flutter)"
-if [[ "$FLUTTER" == *.bat ]]; then
-  DART="${FLUTTER%flutter.bat}dart.bat"
-else
-  DART="${FLUTTER%flutter}dart"
-fi
+FLUTTER=""
+DART=""
 
 verify_flutter() {
+  if [[ -z "$FLUTTER" ]]; then
+    FLUTTER="$(resolve_flutter)"
+    if [[ "$FLUTTER" == *.bat ]]; then
+      DART="${FLUTTER%flutter.bat}dart.bat"
+    else
+      DART="${FLUTTER%flutter}dart"
+    fi
+  fi
   local version
   version="$("$FLUTTER" --version --machine)"
   if ! grep -Eq '"frameworkVersion"[[:space:]]*:[[:space:]]*"3\.47\.2"' <<<"$version"; then
@@ -119,10 +123,13 @@ case "${1:-}" in
     case "$scope" in
       policy|generated)
         architecture "check $scope"
+        if [[ "$scope" == policy ]]; then
+          "$GRADLE" :tooling:architecture:spotlessCheck
+        fi
         ;;
       backend-fast)
         architecture validate
-        "$GRADLE" :backend:check
+        "$GRADLE" :tooling:architecture:spotlessCheck :backend:check
         ;;
       flutter-fast)
         flutter_fast
@@ -140,7 +147,8 @@ case "${1:-}" in
       repository-security)
         architecture "check policy"
         flutter_pub_get
-        "$GRADLE" dependencies --write-locks
+        "$GRADLE" :backend:dependencies :tooling:architecture:dependencies --write-locks
+        "$GRADLE" -p build-logic dependencies --write-locks
         git diff --exit-code -- '**/gradle.lockfile' pubspec.lock gradle/verification-metadata.xml
         ;;
       build-smoke)
@@ -148,7 +156,7 @@ case "${1:-}" in
         ;;
       all)
         architecture "check all"
-        "$GRADLE" :backend:contractsCheck :backend:check :backend:postgresIntegrationTest
+        "$GRADLE" :tooling:architecture:spotlessCheck :backend:contractsCheck :backend:check :backend:postgresIntegrationTest
         architecture "openapi-breaking ${LEMON_API_BASE_REF:-origin/main}"
         flutter_fast
         flutter_test
