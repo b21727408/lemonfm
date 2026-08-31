@@ -13,12 +13,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -42,6 +45,8 @@ public final class ArchitectureTool {
                     Pattern.DOTALL);
     private static final Pattern VERSIONED_DEPENDENCY =
             Pattern.compile("(?:implementation|api|compileOnly|runtimeOnly|testImplementation|testRuntimeOnly)\\s*\\(\\s*\"[^\"]+:[^\"]+:[^\"]+\"");
+    private static final Set<String> HTTP_OPERATIONS =
+            Set.of("get", "put", "post", "delete", "options", "head", "patch", "trace");
 
     private final Path root;
     private final JsonNode modules;
@@ -63,6 +68,16 @@ public final class ArchitectureTool {
                 tool.validate();
                 tool.writeGenerated();
             }
+            case "contract-manifest" -> {
+                if (scope.equals("generate")) {
+                    tool.writeContractManifest();
+                } else if (scope.equals("check")) {
+                    tool.checkContractManifest();
+                } else {
+                    throw new IllegalArgumentException("Expected contract-manifest generate|check");
+                }
+            }
+            case "openapi-breaking" -> tool.checkOpenApiCompatibility(scope);
             case "check" -> tool.check(scope);
             default -> throw new IllegalArgumentException("Unknown architecture command: " + command);
         }
@@ -307,7 +322,354 @@ public final class ArchitectureTool {
         if (!drift.isEmpty()) {
             throw new IllegalStateException("Generated artifact drift:\n  - " + String.join("\n  - ", drift));
         }
+        checkContractManifest();
         System.out.println("generated artifacts: current");
+    }
+
+    private void writeContractManifest() throws IOException {
+        Path path = root.resolve("contracts/generated-bindings.sha256.json");
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, contractManifest(), StandardCharsets.UTF_8);
+        System.out.println("generated contracts/generated-bindings.sha256.json");
+    }
+
+    private void checkContractManifest() throws IOException {
+        Path path = root.resolve("contracts/generated-bindings.sha256.json");
+        if (!Files.isRegularFile(path)) {
+            fail("Generated contract manifest is missing; run ./lemon generate");
+        }
+        String expected = contractManifest();
+        String actual = Files.readString(path, StandardCharsets.UTF_8);
+        if (!actual.equals(expected)) {
+            fail(
+                    "Generated contract bindings differ from their authored OpenAPI; run ./lemon generate");
+        }
+        System.out.println("generated contract bindings: current");
+    }
+
+    private String contractManifest() throws IOException {
+        Map<String, String> sources = new TreeMap<>();
+        sources.put("contracts/http/admin-v1.yaml", sha256(root.resolve("contracts/http/admin-v1.yaml")));
+        sources.put("contracts/http/public-v1.yaml", sha256(root.resolve("contracts/http/public-v1.yaml")));
+
+        Map<String, String> outputs = new TreeMap<>();
+        addContractOutputHashes(outputs, Path.of("backend/src/generated/openapi/admin"));
+        addContractOutputHashes(outputs, Path.of("backend/src/generated/openapi/public"));
+        addContractOutputHashes(outputs, Path.of("packages/admin_api_client/lib"));
+        addContractOutputHashes(outputs, Path.of("packages/api_client/lib"));
+        if (outputs.isEmpty()) {
+            fail("Generated contract bindings are missing; run ./lemon generate");
+        }
+
+        Map<String, Object> manifest = new LinkedHashMap<>();
+        manifest.put("algorithm", "SHA-256");
+        manifest.put("authoredSources", sources);
+        manifest.put("generatedOutputs", outputs);
+        return JSON.writeValueAsString(manifest) + "\n";
+    }
+
+    private void addContractOutputHashes(Map<String, String> outputs, Path relativeRoot)
+            throws IOException {
+        Path directory = root.resolve(relativeRoot);
+        if (!Files.isDirectory(directory)) {
+            fail("Generated contract output is missing: " + slash(relativeRoot));
+        }
+        try (Stream<Path> paths = Files.walk(directory)) {
+            for (Path path : paths.filter(Files::isRegularFile).sorted().toList()) {
+                String relative = slash(root.relativize(path));
+                outputs.put(relative, sha256(path));
+            }
+        }
+    }
+
+    private static String sha256(Path path) throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(Files.readAllBytes(path)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private void checkOpenApiCompatibility(String baseRef) throws IOException, InterruptedException {
+        CommandResult baseCommit = git("rev-parse", "--verify", baseRef + "^{commit}");
+        if (baseCommit.exitCode() != 0) {
+            fail("Cannot resolve OpenAPI compatibility base " + baseRef + ": " + baseCommit.output());
+        }
+        for (String specification : List.of("public-v1.yaml", "admin-v1.yaml")) {
+            String relative = "contracts/http/" + specification;
+            CommandResult baseline = git("show", baseRef + ":" + relative);
+            if (baseline.exitCode() != 0) {
+                System.out.println(relative + ": no baseline on " + baseRef + " (initial contract)");
+                continue;
+            }
+            JsonNode previous = YAML.readTree(baseline.output());
+            JsonNode current = YAML.readTree(root.resolve(relative).toFile());
+            compareOpenApi(previous, current, relative);
+            System.out.println(relative + ": no breaking changes against " + baseRef);
+        }
+    }
+
+    private void compareOpenApi(JsonNode previous, JsonNode current, String specification) {
+        previous.path("paths")
+                .fields()
+                .forEachRemaining(
+                        pathEntry -> {
+                            String path = pathEntry.getKey();
+                            JsonNode currentPath = current.path("paths").path(path);
+                            if (currentPath.isMissingNode()) {
+                                fail(specification + ": removed path " + path);
+                            }
+                            pathEntry.getValue()
+                                    .fields()
+                                    .forEachRemaining(
+                                            operationEntry -> {
+                                                String method = operationEntry.getKey();
+                                                if (!HTTP_OPERATIONS.contains(method)) {
+                                                    return;
+                                                }
+                                                JsonNode currentOperation = currentPath.path(method);
+                                                if (currentOperation.isMissingNode()) {
+                                                    fail(
+                                                            specification
+                                                                    + ": removed operation "
+                                                                    + method.toUpperCase()
+                                                                    + " "
+                                                                    + path);
+                                                }
+                                                compareOperation(
+                                                        previous,
+                                                        current,
+                                                        operationEntry.getValue(),
+                                                        currentOperation,
+                                                        specification
+                                                                + " "
+                                                                + method.toUpperCase()
+                                                                + " "
+                                                                + path);
+                                            });
+                        });
+    }
+
+    private void compareOperation(
+            JsonNode previousRoot,
+            JsonNode currentRoot,
+            JsonNode previous,
+            JsonNode current,
+            String location) {
+        compareParameters(
+                previousRoot,
+                currentRoot,
+                previous.path("parameters"),
+                current.path("parameters"),
+                location);
+
+        JsonNode previousBody = resolve(previousRoot, previous.path("requestBody"));
+        if (!previousBody.isMissingNode()) {
+            JsonNode currentBody = resolve(currentRoot, current.path("requestBody"));
+            if (currentBody.isMissingNode()) {
+                fail(location + ": removed request body");
+            }
+            if (!previousBody.path("required").asBoolean(false)
+                    && currentBody.path("required").asBoolean(false)) {
+                fail(location + ": made request body required");
+            }
+            compareContent(
+                    previousRoot,
+                    currentRoot,
+                    previousBody,
+                    currentBody,
+                    location + " request",
+                    true);
+        }
+
+        previous.path("responses")
+                .fields()
+                .forEachRemaining(
+                        response -> {
+                            JsonNode currentResponse = current.path("responses").path(response.getKey());
+                            if (currentResponse.isMissingNode()) {
+                                fail(location + ": removed response " + response.getKey());
+                            }
+                            compareContent(
+                                    previousRoot,
+                                    currentRoot,
+                                    resolve(previousRoot, response.getValue()),
+                                    resolve(currentRoot, currentResponse),
+                                    location + " response " + response.getKey(),
+                                    false);
+                        });
+    }
+
+    private void compareParameters(
+            JsonNode previousRoot,
+            JsonNode currentRoot,
+            JsonNode previous,
+            JsonNode current,
+            String location) {
+        for (JsonNode parameterNode : previous) {
+            JsonNode parameter = resolve(previousRoot, parameterNode);
+            String name = parameter.path("name").asText();
+            String in = parameter.path("in").asText();
+            JsonNode currentParameter = null;
+            for (JsonNode candidateNode : current) {
+                JsonNode candidate = resolve(currentRoot, candidateNode);
+                if (name.equals(candidate.path("name").asText())
+                        && in.equals(candidate.path("in").asText())) {
+                    currentParameter = candidate;
+                    break;
+                }
+            }
+            if (currentParameter == null) {
+                fail(location + ": removed " + in + " parameter " + name);
+            }
+            if (!parameter.path("required").asBoolean(false)
+                    && currentParameter.path("required").asBoolean(false)) {
+                fail(location + ": made parameter required: " + name);
+            }
+            compareSchema(
+                    previousRoot,
+                    currentRoot,
+                    parameter.path("schema"),
+                    currentParameter.path("schema"),
+                    location + " parameter " + name,
+                    true,
+                    new HashSet<>());
+        }
+    }
+
+    private void compareContent(
+            JsonNode previousRoot,
+            JsonNode currentRoot,
+            JsonNode previous,
+            JsonNode current,
+            String location,
+            boolean request) {
+        previous.path("content")
+                .fields()
+                .forEachRemaining(
+                        media -> {
+                            JsonNode currentMedia = current.path("content").path(media.getKey());
+                            if (currentMedia.isMissingNode()) {
+                                fail(location + ": removed media type " + media.getKey());
+                            }
+                            compareSchema(
+                                    previousRoot,
+                                    currentRoot,
+                                    media.getValue().path("schema"),
+                                    currentMedia.path("schema"),
+                                    location + " " + media.getKey(),
+                                    request,
+                                    new HashSet<>());
+                        });
+    }
+
+    private void compareSchema(
+            JsonNode previousRoot,
+            JsonNode currentRoot,
+            JsonNode previousNode,
+            JsonNode currentNode,
+            String location,
+            boolean request,
+            Set<String> visited) {
+        JsonNode previous = resolve(previousRoot, previousNode);
+        JsonNode current = resolve(currentRoot, currentNode);
+        String visitKey =
+                previousNode.path("$ref").asText() + "|" + currentNode.path("$ref").asText();
+        if (!visitKey.equals("|") && !visited.add(visitKey)) {
+            return;
+        }
+        if (current.isMissingNode()) {
+            fail(location + ": removed schema");
+        }
+        String previousType = previous.path("type").asText();
+        String currentType = current.path("type").asText();
+        if (!previousType.isEmpty() && !previousType.equals(currentType)) {
+            fail(
+                    location
+                            + ": narrowed or changed type from "
+                            + previousType
+                            + " to "
+                            + currentType);
+        }
+        if (previous.path("nullable").asBoolean(false)
+                && !current.path("nullable").asBoolean(false)) {
+            fail(location + ": removed nullable support");
+        }
+        Set<String> currentEnums = textValues(current.path("enum"));
+        for (String value : textValues(previous.path("enum"))) {
+            if (!currentEnums.contains(value)) {
+                fail(location + ": removed enum value " + value);
+            }
+        }
+
+        JsonNode currentProperties = current.path("properties");
+        previous.path("properties")
+                .fields()
+                .forEachRemaining(
+                        property -> {
+                            JsonNode currentProperty = currentProperties.path(property.getKey());
+                            if (currentProperty.isMissingNode()) {
+                                fail(location + ": removed property " + property.getKey());
+                            }
+                            compareSchema(
+                                    previousRoot,
+                                    currentRoot,
+                                    property.getValue(),
+                                    currentProperty,
+                                    location + "." + property.getKey(),
+                                    request,
+                                    visited);
+                        });
+        if (request) {
+            Set<String> addedRequired = textValues(current.path("required"));
+            addedRequired.removeAll(textValues(previous.path("required")));
+            if (!addedRequired.isEmpty()) {
+                fail(location + ": added required request properties " + addedRequired);
+            }
+        }
+        if (previous.has("items")) {
+            compareSchema(
+                    previousRoot,
+                    currentRoot,
+                    previous.path("items"),
+                    current.path("items"),
+                    location + "[]",
+                    request,
+                    visited);
+        }
+    }
+
+    private static JsonNode resolve(JsonNode root, JsonNode node) {
+        if (!node.has("$ref")) {
+            return node;
+        }
+        String reference = node.path("$ref").asText();
+        if (!reference.startsWith("#/")) {
+            fail("Only local OpenAPI references are supported by the compatibility gate: " + reference);
+        }
+        JsonNode resolved = root;
+        for (String part : reference.substring(2).split("/")) {
+            resolved = resolved.path(part.replace("~1", "/").replace("~0", "~"));
+        }
+        return resolved;
+    }
+
+    private static Set<String> textValues(JsonNode array) {
+        Set<String> values = new LinkedHashSet<>();
+        array.forEach(value -> values.add(value.asText()));
+        return values;
+    }
+
+    private CommandResult git(String... arguments) throws IOException, InterruptedException {
+        List<String> command = new ArrayList<>();
+        command.add("git");
+        command.addAll(List.of(arguments));
+        Process process =
+                new ProcessBuilder(command).directory(root.toFile()).redirectErrorStream(true).start();
+        String output =
+                new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).strip();
+        return new CommandResult(process.waitFor(), output);
     }
 
     private Map<Path, String> generatedOutputs() throws IOException {
@@ -655,4 +1017,6 @@ public final class ArchitectureTool {
     }
 
     private record LawBlock(String id, String body, String source) {}
+
+    private record CommandResult(int exitCode, String output) {}
 }

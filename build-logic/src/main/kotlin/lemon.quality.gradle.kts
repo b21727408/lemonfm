@@ -30,6 +30,10 @@ checkstyle {
     configDirectory = rootProject.layout.projectDirectory.dir("config/checkstyle")
 }
 
+tasks.withType<Checkstyle>().configureEach {
+    exclude("fm/lemon/generated/**")
+}
+
 tasks.withType<JavaCompile>().configureEach {
     options.errorprone {
         disableWarningsInGeneratedCode.set(true)
@@ -42,4 +46,5 @@ tasks.withType<CheckForbiddenApis>().configureEach {
     bundledSignatures = setOf("jdk-unsafe", "jdk-deprecated")
     signaturesFiles = rootProject.files("config/forbidden-apis/signatures.txt")
     failOnMissingClasses = false
+    exclude("fm/lemon/generated/**")
 }

@@ -1,0 +1,35 @@
+{
+  "algorithm" : "SHA-256",
+  "authoredSources" : {
+    "contracts/http/admin-v1.yaml" : "42db3ad056e1762a654f56b07dbe824d927770c16105c56532df73ea616ebfbf",
+    "contracts/http/public-v1.yaml" : "99b939f0cd113f70e3ae99356b9c3036a6b05a39d1c14f7e102c59ca66d747c0"
+  },
+  "generatedOutputs" : {
+    "backend/src/generated/openapi/admin/fm/lemon/generated/contract/adminv1/api/ContractFixtureApi.java" : "cf4f914d6f77ae15b426e564961e7801b6903c36fe5e4d5d30f10c25547612d7",
+    "backend/src/generated/openapi/admin/fm/lemon/generated/contract/adminv1/model/ContractFixtureResponse.java" : "0f2d5a1c362cc0a5497961a52a6e306a45121b3f6c4e78f7c22f9c4d2217de27",
+    "backend/src/generated/openapi/public/fm/lemon/generated/contract/publicv1/api/ContractFixtureApi.java" : "bf3f5d3f1b364c8bd47b776fc70c88d7f222888ad52557c1dc959bf43e143d5a",
+    "backend/src/generated/openapi/public/fm/lemon/generated/contract/publicv1/model/ContractFixtureResponse.java" : "b09f5d905bddd1d5de3900639b073735c9123821e08ec844741d041c75da2369",
+    "packages/admin_api_client/lib/api.dart" : "ec9d128aa35804137acb05ca3d58f953b684d6a1c0f8bcdac772989e1e90c5a4",
+    "packages/admin_api_client/lib/api/contract_fixture_api.dart" : "0b9a7f61449b231935e40bf30336feb07415b852077bbf6317cb90be4b58c3c1",
+    "packages/admin_api_client/lib/api_client.dart" : "e59276094aef734f80faeb83c7c3d4d7c0180f7952b4fb38c2b12424cba159d7",
+    "packages/admin_api_client/lib/api_exception.dart" : "bd6aa0368eeac97a5722b009e0a15de16368493386658f97c94aa0612b9be1fc",
+    "packages/admin_api_client/lib/api_helper.dart" : "ac061d311794c474a756ee9e0a09baf70473aca83cef31c8ca40bbe2ba69ae12",
+    "packages/admin_api_client/lib/auth/api_key_auth.dart" : "7fa623cdbe8a0eb3c7952b0a7f4d1fe7bf29d1706a9a8cba66fba617c0060103",
+    "packages/admin_api_client/lib/auth/authentication.dart" : "666d0b657c6e8565f2afc4e2dd37bea89defc71d6df4d534a046c46873d52a08",
+    "packages/admin_api_client/lib/auth/http_basic_auth.dart" : "ae497c007493c6b3bbd77e64090a92f067a7278dbd6913d0db31bfc807f5c776",
+    "packages/admin_api_client/lib/auth/http_bearer_auth.dart" : "52dac380c0f251152b004de1c11c7e04a399ca6f17add58c96c52dc9ef5ddf6b",
+    "packages/admin_api_client/lib/auth/oauth.dart" : "12386be81244ad222a3e6fdee7de83d264d983d5ce489e1fd3a7c73a7eb5821b",
+    "packages/admin_api_client/lib/model/contract_fixture_response.dart" : "9d3355664fac19dab547764b7a4d34a2c7302e06e9f4131022da320a152576db",
+    "packages/api_client/lib/api.dart" : "ec9d128aa35804137acb05ca3d58f953b684d6a1c0f8bcdac772989e1e90c5a4",
+    "packages/api_client/lib/api/contract_fixture_api.dart" : "3cabb1e470113177dcc6b2a3b4da2d2fa76daae80124c36f0be4128ac1fca197",
+    "packages/api_client/lib/api_client.dart" : "e59276094aef734f80faeb83c7c3d4d7c0180f7952b4fb38c2b12424cba159d7",
+    "packages/api_client/lib/api_exception.dart" : "bd6aa0368eeac97a5722b009e0a15de16368493386658f97c94aa0612b9be1fc",
+    "packages/api_client/lib/api_helper.dart" : "ac061d311794c474a756ee9e0a09baf70473aca83cef31c8ca40bbe2ba69ae12",
+    "packages/api_client/lib/auth/api_key_auth.dart" : "7fa623cdbe8a0eb3c7952b0a7f4d1fe7bf29d1706a9a8cba66fba617c0060103",
+    "packages/api_client/lib/auth/authentication.dart" : "666d0b657c6e8565f2afc4e2dd37bea89defc71d6df4d534a046c46873d52a08",
+    "packages/api_client/lib/auth/http_basic_auth.dart" : "ae497c007493c6b3bbd77e64090a92f067a7278dbd6913d0db31bfc807f5c776",
+    "packages/api_client/lib/auth/http_bearer_auth.dart" : "52dac380c0f251152b004de1c11c7e04a399ca6f17add58c96c52dc9ef5ddf6b",
+    "packages/api_client/lib/auth/oauth.dart" : "12386be81244ad222a3e6fdee7de83d264d983d5ce489e1fd3a7c73a7eb5821b",
+    "packages/api_client/lib/model/contract_fixture_response.dart" : "c8a98495ffc57099338682ca4fc01bb611102cada5767efeae2db04f41f84839"
+  }
+}

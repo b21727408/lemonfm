@@ -13,7 +13,8 @@ architecture() {
 case "${1:-}" in
   generate)
     architecture generate
-    "$GRADLE" :backend:generateJooq
+    "$GRADLE" :backend:generateJooq :backend:generateContractBindings
+    architecture "contract-manifest generate"
     ;;
   check)
     scope="${3:-all}"
@@ -32,9 +33,15 @@ case "${1:-}" in
         architecture validate
         "$GRADLE" :backend:postgresIntegrationTest
         ;;
+      contracts)
+        architecture validate
+        "$GRADLE" :backend:contractsCheck :backend:test --tests fm.lemon.contractfixture.ContractFixtureResponseTest
+        architecture "contract-manifest check"
+        architecture "openapi-breaking ${LEMON_API_BASE_REF:-origin/main}"
+        ;;
       all)
         architecture "check all"
-        "$GRADLE" :backend:check :backend:postgresIntegrationTest
+        "$GRADLE" :backend:contractsCheck :backend:check :backend:postgresIntegrationTest
         ;;
       *)
         echo "unknown check scope: $scope" >&2
