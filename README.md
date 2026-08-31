@@ -59,7 +59,7 @@ Prerequisites and exact versions are pinned in the repository and listed in
 [`docs/08-quality`](docs/08-quality.md).
 
 ```bash
-docker compose up postgres storage wiremock   # dependencies in containers
+docker compose up postgres                    # the only Phase 0 dependency
 ./lemon dev                                    # everything else natively
 ```
 
@@ -87,7 +87,7 @@ Boundaries are defined in [`architecture/modules.yaml`](architecture/modules.yam
 and enforced from it. Changing what a module may depend on means editing that
 file.
 
-Build logic lives in `backend/build-logic/` and is owned separately. **A feature
+Build logic lives in `build-logic/` and is owned separately. **A feature
 task never changes build logic, dependency policy or a quality gate** — a task
 that needs to is a build-infrastructure task and says so in its title.
 

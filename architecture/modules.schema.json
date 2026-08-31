@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lemon.fm/architecture/modules.schema.json",
+  "title": "Lemon.fm module boundary definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "policies", "enforcement", "backend", "flutter", "absent"],
+  "properties": {
+    "version": { "const": 1 },
+    "policies": { "$ref": "#/$defs/policies" },
+    "enforcement": { "$ref": "#/$defs/enforcement" },
+    "backend": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "$ref": "#/$defs/backendModule" }
+    },
+    "flutter": { "$ref": "#/$defs/flutter" },
+    "absent": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "event": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+    "stringArray": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["graph", "cross_module", "persistence", "domain_layer", "layers", "transactions", "events"],
+      "properties": {
+        "graph": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["synchronous_call_cycles", "undeclared_dependencies"],
+          "properties": {
+            "synchronous_call_cycles": { "const": "forbidden" },
+            "undeclared_dependencies": { "const": "forbidden" }
+          }
+        },
+        "cross_module": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["calls", "subscriptions", "visibility", "api_signatures"],
+          "properties": {
+            "calls": { "const": "declared_only" },
+            "subscriptions": { "const": "declared_only" },
+            "visibility": { "const": "api_only" },
+            "api_signatures": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["may_expose", "may_not_expose"],
+              "properties": {
+                "may_expose": { "$ref": "#/$defs/stringArray" },
+                "may_not_expose": { "$ref": "#/$defs/stringArray" }
+              }
+            }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ownership", "cross_schema_access"],
+          "properties": {
+            "ownership": { "const": "schema_per_module" },
+            "cross_schema_access": { "const": "forbidden" }
+          }
+        },
+        "domain_layer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["may_depend_on_other_modules", "forbidden_namespaces", "forbidden_calls"],
+          "properties": {
+            "may_depend_on_other_modules": { "const": false },
+            "forbidden_namespaces": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["java", "dart"],
+              "properties": {
+                "java": { "$ref": "#/$defs/stringArray" },
+                "dart": { "$ref": "#/$defs/stringArray" }
+              }
+            },
+            "forbidden_calls": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["java", "dart"],
+              "properties": {
+                "java": { "$ref": "#/$defs/stringArray" },
+                "dart": { "$ref": "#/$defs/stringArray" }
+              }
+            }
+          }
+        },
+        "layers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["order", "domain_depends_on", "api_may_depend_on", "api_may_not_depend_on", "api_implemented_by"],
+          "properties": {
+            "order": { "$ref": "#/$defs/stringArray" },
+            "domain_depends_on": { "$ref": "#/$defs/stringArray" },
+            "api_may_depend_on": { "$ref": "#/$defs/stringArray" },
+            "api_may_not_depend_on": { "$ref": "#/$defs/stringArray" },
+            "api_implemented_by": { "const": "application" }
+          }
+        },
+        "transactions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["owner", "synchronous_module_calls", "external_io_inside_transaction", "external_io_marker", "external_io_scope", "requires_new"],
+          "properties": {
+            "owner": { "const": "outermost_application_operation" },
+            "synchronous_module_calls": { "const": "join_caller_transaction" },
+            "external_io_inside_transaction": { "const": "forbidden" },
+            "external_io_marker": { "const": "fm.lemon.architecture.ExternalIo" },
+            "external_io_scope": { "const": "capability" },
+            "requires_new": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["application_code", "framework_exceptions"],
+              "properties": {
+                "application_code": { "const": "forbidden" },
+                "framework_exceptions": {
+                  "type": "array",
+                  "const": ["spring_modulith_application_module_listener"]
+                }
+              }
+            }
+          }
+        },
+        "events": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["delivery", "guarantee", "handler_idempotency", "payloads_may_expose", "required_fields", "ordering", "no_orphan", "retry"],
+          "properties": {
+            "delivery": { "const": "in_process_durable" },
+            "guarantee": { "const": "at_least_once" },
+            "handler_idempotency": { "const": "required" },
+            "payloads_may_expose": { "$ref": "#/$defs/stringArray" },
+            "required_fields": { "$ref": "#/$defs/stringArray" },
+            "ordering": { "const": "monotonic_per_aggregate" },
+            "no_orphan": { "const": true },
+            "retry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["max_attempts", "backoff", "poison_alert", "completed_retention"],
+              "properties": {
+                "max_attempts": { "type": "integer", "minimum": 1 },
+                "backoff": { "const": "exponential" },
+                "poison_alert": { "const": true },
+                "completed_retention": { "type": "string", "pattern": "^[1-9][0-9]*[dhm]$" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "enforcement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graph.synchronous_call_cycles",
+        "graph.undeclared_dependencies",
+        "cross_module.calls",
+        "cross_module.subscriptions",
+        "cross_module.api_signatures",
+        "persistence.cross_schema_access",
+        "domain_layer.forbidden_namespaces",
+        "domain_layer.forbidden_calls",
+        "layers.order",
+        "transactions.external_io_inside_transaction",
+        "transactions.requires_new.application_code",
+        "events.no_orphan",
+        "events.handler_idempotency"
+      ],
+      "properties": {
+        "graph.synchronous_call_cycles": { "$ref": "#/$defs/mechanisms" },
+        "graph.undeclared_dependencies": { "$ref": "#/$defs/mechanisms" },
+        "cross_module.calls": { "$ref": "#/$defs/mechanisms" },
+        "cross_module.subscriptions": { "$ref": "#/$defs/mechanisms" },
+        "cross_module.api_signatures": { "$ref": "#/$defs/mechanisms" },
+        "persistence.cross_schema_access": { "$ref": "#/$defs/mechanisms" },
+        "domain_layer.forbidden_namespaces": { "$ref": "#/$defs/mechanisms" },
+        "domain_layer.forbidden_calls": { "$ref": "#/$defs/mechanisms" },
+        "layers.order": { "$ref": "#/$defs/mechanisms" },
+        "transactions.external_io_inside_transaction": { "$ref": "#/$defs/mechanisms" },
+        "transactions.requires_new.application_code": { "$ref": "#/$defs/mechanisms" },
+        "events.no_orphan": { "$ref": "#/$defs/mechanisms" },
+        "events.handler_idempotency": { "$ref": "#/$defs/mechanisms" }
+      }
+    },
+    "mechanisms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "archunit",
+          "archunit_external_io_marker",
+          "forbidden_apis",
+          "generated_call_graph_check",
+          "generator_check",
+          "integration_test",
+          "lemon_lints",
+          "pubspec_graph_check",
+          "review",
+          "spring_modulith_typed_dependencies"
+        ]
+      }
+    },
+    "backendModule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "owns", "calls"],
+      "properties": {
+        "schema": { "$ref": "#/$defs/name" },
+        "owns": { "$ref": "#/$defs/stringArray" },
+        "calls": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*\\.api$" },
+          "uniqueItems": true
+        },
+        "subscribes": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/event" },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "publishes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/event" },
+          "uniqueItems": true
+        },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "flutterUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dependencies"],
+      "properties": {
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "uniqueItems": true
+        },
+        "generated_from": { "type": "string", "minLength": 1 },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "flutter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packages", "features", "apps", "notes"],
+      "properties": {
+        "packages": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/flutterUnit" }
+        },
+        "features": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/flutterUnit" }
+        },
+        "apps": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/flutterUnit" }
+        },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

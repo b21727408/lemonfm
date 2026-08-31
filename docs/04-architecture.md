@@ -139,9 +139,20 @@ sludge.
 
 ### Enforcement
 
-**Spring Modulith** verifies the module graph: illegal dependencies, cycles,
-and reaching past a module's `api` into its internals. `ApplicationModules.verify()`
-runs in CI and fails the build.
+**Spring Modulith** discovers the modules, their exposed interfaces and their
+typed dependencies. A repository verifier built on its documented public API
+then checks those facts against `architecture/modules.yaml`. Component and
+ordinary static API dependencies are synchronous-call edges; event-listener
+dependencies are subscription edges. The synchronous graph must be acyclic.
+The subscription graph is checked independently and may point back toward a
+caller. A subscription is never permission to call the publisher.
+
+The repository deliberately does not use an unqualified
+`ApplicationModules.verify()` as its graph gate. That method treats all module
+dependencies as one cycle graph, which cannot express the distinction above.
+The custom verifier does not filter violation messages or use framework
+internals: it consumes Spring Modulith's public dependency type, source type,
+target type and target-module model.
 
 **ArchUnit** verifies the inside of a module: `domain` importing no framework,
 layer direction, no cross-module type references.
@@ -290,15 +301,21 @@ opens.
 
 **The rule is made structural before it is verified.** An architecture test
 cannot watch for network calls at runtime, so the shape is arranged so the test
-has something to check: every outbound adapter is marked `@ExternalIo`, and a
-transactional application class may not depend on anything carrying that mark.
-External work happens in event listeners, after the commit. The same pattern
+has something to check: every outbound adapter is marked
+`fm.lemon.architecture.ExternalIo`, and a transactional application operation
+may not depend directly or transitively on an API or port carrying that mark.
+The marker is capability/interface-scoped, not module-wide. A module may expose
+transaction-safe synchronous APIs beside a separate marked preflight or hosted
+API without making the whole module external. External work happens outside the
+transaction, commonly in an event listener after commit. The same pattern
 applies wherever a guarantee sounds stronger than a tool can deliver — arrange
 the code so the property is structural, then let the tool verify the structure.
 
-`REQUIRES_NEW` and its equivalents require explicit approval. They are how a
-generated implementation quietly creates a second consistency model, and the
-rule exists so that appears in a review rather than in an incident.
+Application and product code may not explicitly introduce `REQUIRES_NEW` or an
+equivalent independent transaction. The one framework-owned exception is the
+transaction semantics Spring Modulith applies through
+`@ApplicationModuleListener`; permitting that annotation does not create a
+general application allowlist.
 
 ### A module's `api` may not leak its insides
 
@@ -348,6 +365,13 @@ The line between synchronous and asynchronous is a rule, not a preference:
 <!-- agent-law:id=arch.sync-vs-event -->
 > **"May this happen?" is a synchronous call. "This happened" is an event.**
 <!-- /agent-law -->
+
+These form two different directed graphs. Only synchronous/component/static API
+calls participate in the acyclic call graph. Event subscriptions are declared
+and verified independently, may point toward a module that calls the subscriber,
+and grant no synchronous permission. Thus `messaging` may synchronously ask
+`safety` for an authoritative decision while `safety` asynchronously consumes a
+`messaging` event without creating a synchronous cycle.
 
 Sending a request checks contact eligibility, the door, the cooldown and the
 quota synchronously, because a wrong answer is a product invariant broken.
@@ -453,7 +477,7 @@ never appears in any other module.
 
 ## Moderation
 
-`apps/moderation` is an internal console: report queue with severity lanes,
+`apps/moderation` is a web-only internal Flutter console: report queue with severity lanes,
 evidence, enforcement actions, appeals, and an audit history.
 
 It exists from the start, even minimal, because `06` promises human review — and
@@ -477,12 +501,14 @@ lives here.
 Development runs the *dependencies* in containers and the *code* natively:
 
 ```
-docker compose up postgres storage wiremock
+docker compose up postgres
 ./lemon dev
 ```
 
 Rebuilding a container on every backend change slows the loop for no benefit. A
-full-stack compose path exists for smoke testing.
+full-stack compose path exists for smoke testing. Object storage arrives with
+the first media behaviour that consumes it. WireMock is created inside tests and
+is not a persistent development service.
 
 Staging and production run the same image with different configuration.
 Migrations run as a **deployment step before rollout**, not on application
@@ -511,3 +537,7 @@ which is the property being bought.
 `fm.lemon` is the Android application id, the iOS bundle id and the Java base
 package. **Irreversible after the first store submission** — changing it later
 means a new listing and losing every install.
+
+The shipped mobile app supports Android API 24 and newer and iOS 15.0 and newer.
+`apps/moderation` has no Android or iOS runner. `apps/widgetbook` is a
+development-only application.

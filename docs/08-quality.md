@@ -61,6 +61,12 @@ secret scanning ·
 `architecture/modules.yaml` and the generators that read it · the `AGENTS.md`
 generation mechanism · the `./lemon` command surface.
 
+Phase-zero development infrastructure is PostgreSQL only. WireMock is
+test-local. Object storage, generic concurrency harnesses and runtime
+external-I/O transaction proxies arrive only with behaviour that consumes them;
+the structural `@ExternalIo` rule and real-Postgres test base are established
+now.
+
 Then stop. **Not on day zero:** mutation testing, load testing, benchmarks,
 service objectives, native end-to-end frameworks, additional static analysers
 that overlap what is already there.
@@ -153,8 +159,14 @@ and every mechanism follows. The file also records **which mechanism enforces
 which policy**, so a claim in a document can be checked against something that
 exists.
 
-**Spring Modulith** — the module graph: illegal dependencies, cycles, reaching
-past a module's `api` into its internals. `ApplicationModules.verify()` in CI.
+**Spring Modulith plus the generated typed-dependency verifier** — Modulith's
+documented public model supplies discovered modules, exposed interfaces and
+dependency types. Component and ordinary static API dependencies are checked
+against declared `calls`; event-listener dependencies are checked against
+declared `subscribes`. Only the synchronous `calls` graph is acyclic. A
+subscription may point back toward a caller and never grants call permission.
+The repository does not use unqualified `ApplicationModules.verify()` as the
+graph gate because its combined cycle model cannot represent this policy.
 
 **ArchUnit** — inside a module: `domain` importing no Spring, no jOOQ, no
 Jackson, no HTTP, no other module; layer direction `infrastructure → application
@@ -220,7 +232,7 @@ green suite that proves nothing is to mock everything:
 - **Persistence:** real Postgres, always. Never an in-memory database — it has
   different semantics, and a test that passes against it is a test about the
   wrong database.
-- **Vendors:** WireMock.
+- **Vendors:** an in-process WireMock fixture in the test that needs it.
 - **Module integration:** the real Spring module.
 
 **Property-based testing for policy composition.** An example test checks that a
@@ -229,9 +241,11 @@ sequence of door changes, blocks, declines, cooldowns and subscription changes,
 money never bypasses a block. That is where the invariants in `01` actually
 live, and generated sequences find the ordering nobody thought of.
 
-**Concurrency is tested against a real database.** Two simultaneous sends with
-the same idempotency key must produce exactly one row. That is not provable
-with a mock.
+**Concurrency is tested against a real database when the first concurrent
+behaviour arrives.** Two simultaneous sends with the same idempotency key must
+eventually produce exactly one row. That is not provable with a mock, but a
+generic concurrency framework with no behaviour to consume it proves nothing.
+The day-zero Testcontainers PostgreSQL base is the required foundation.
 
 **Goldens must be deterministic:** real fonts in the harness, pinned surface and
 pixel ratio, animations disabled, fixed locale, generated and verified on one
@@ -350,26 +364,27 @@ CI" stops being a category of problem.
 
 ## Continuous integration
 
-Layered, so a fast mistake fails fast:
+Layered, so a fast mistake fails fast. Every box is a scope of the same root
+command rather than an independent CI implementation:
 
 ```
-policy checks — generated files current, no PROVISIONAL, no banned words
-      ↓
-fast backend                       fast flutter
-format, static analysis,           format, analysis, lints,
-Modulith, ArchUnit, unit tests     unit and widget tests
-      ↓
-contracts — validate, regenerate both sides, breaking-change diff, schemas
-      ↓
-integration — Testcontainers, module tests, migration replay, WireMock
-      ↓
-build smoke — both platforms
-      ↓
-security — secret scan, dependency audit
+policy — schema first, semantic graph, repository policy
+   ├── backend-fast
+   ├── flutter-fast
+   ├── generated-drift
+   └── repository-security — secrets, locks, verification metadata
+            ↓
+contracts — authored specs, both generated sides, breaking-change diff
+            ↓
+postgres-integration — Testcontainers, migration replay, schema ownership
+            ↓
+build-smoke — declared runtime and Flutter targets
+            ↓
+pr-gate
 ```
 
 **Nightly, not per pull request:** mutation testing, full device end-to-end,
-deeper security analysis, dependency audit. Expensive checks on every pull
+deeper security analysis and dependency audit. Expensive checks on every pull
 request are their own kind of bad engineering — they slow the loop and get
 ignored.
 

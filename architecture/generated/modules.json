@@ -1,0 +1,250 @@
+{
+  "version" : 1,
+  "policies" : {
+    "graph" : {
+      "synchronous_call_cycles" : "forbidden",
+      "undeclared_dependencies" : "forbidden"
+    },
+    "cross_module" : {
+      "calls" : "declared_only",
+      "subscriptions" : "declared_only",
+      "visibility" : "api_only",
+      "api_signatures" : {
+        "may_expose" : [ "api_types", "jdk_types", "foundation_types" ],
+        "may_not_expose" : [ "domain", "application", "infrastructure", "jooq_generated" ]
+      }
+    },
+    "persistence" : {
+      "ownership" : "schema_per_module",
+      "cross_schema_access" : "forbidden"
+    },
+    "domain_layer" : {
+      "may_depend_on_other_modules" : false,
+      "forbidden_namespaces" : {
+        "java" : [ "org.springframework", "org.jooq", "com.fasterxml.jackson", "jakarta.persistence", "jakarta.servlet" ],
+        "dart" : [ "package:flutter", "package:flutter_riverpod", "package:riverpod", "package:dio" ]
+      },
+      "forbidden_calls" : {
+        "dart" : [ "DateTime.now", "Random", "Platform" ],
+        "java" : [ "System.currentTimeMillis", "java.util.Date", "Math.random" ]
+      }
+    },
+    "layers" : {
+      "order" : [ "infrastructure", "application", "domain" ],
+      "domain_depends_on" : [ ],
+      "api_may_depend_on" : [ "jdk", "foundation", "own_api_types" ],
+      "api_may_not_depend_on" : [ "domain", "application", "infrastructure" ],
+      "api_implemented_by" : "application"
+    },
+    "transactions" : {
+      "owner" : "outermost_application_operation",
+      "synchronous_module_calls" : "join_caller_transaction",
+      "external_io_inside_transaction" : "forbidden",
+      "external_io_marker" : "fm.lemon.architecture.ExternalIo",
+      "external_io_scope" : "capability",
+      "requires_new" : {
+        "application_code" : "forbidden",
+        "framework_exceptions" : [ "spring_modulith_application_module_listener" ]
+      }
+    },
+    "events" : {
+      "delivery" : "in_process_durable",
+      "guarantee" : "at_least_once",
+      "handler_idempotency" : "required",
+      "payloads_may_expose" : [ "api_types", "jdk_types" ],
+      "required_fields" : [ "eventId", "aggregateId", "aggregateVersion", "occurredAt" ],
+      "ordering" : "monotonic_per_aggregate",
+      "no_orphan" : true,
+      "retry" : {
+        "max_attempts" : 8,
+        "backoff" : "exponential",
+        "poison_alert" : true,
+        "completed_retention" : "7d"
+      }
+    }
+  },
+  "enforcement" : {
+    "graph.synchronous_call_cycles" : [ "generated_call_graph_check" ],
+    "graph.undeclared_dependencies" : [ "spring_modulith_typed_dependencies", "pubspec_graph_check", "lemon_lints" ],
+    "cross_module.calls" : [ "spring_modulith_typed_dependencies", "lemon_lints", "pubspec_graph_check" ],
+    "cross_module.subscriptions" : [ "spring_modulith_typed_dependencies" ],
+    "cross_module.api_signatures" : [ "archunit" ],
+    "persistence.cross_schema_access" : [ "archunit" ],
+    "domain_layer.forbidden_namespaces" : [ "archunit", "lemon_lints" ],
+    "domain_layer.forbidden_calls" : [ "lemon_lints", "forbidden_apis" ],
+    "layers.order" : [ "archunit" ],
+    "transactions.external_io_inside_transaction" : [ "archunit_external_io_marker" ],
+    "transactions.requires_new.application_code" : [ "archunit" ],
+    "events.no_orphan" : [ "generator_check" ],
+    "events.handler_idempotency" : [ "review", "integration_test" ]
+  },
+  "backend" : {
+    "identity" : {
+      "schema" : "identity",
+      "owns" : [ "accounts", "phone identity hashes", "sessions", "ban anchors", "age gate" ],
+      "calls" : [ ],
+      "publishes" : [ "AccountDeleted", "AccountBanned" ],
+      "notes" : "Root of the graph, deliberately. The ban anchor outlives every other record (docs/01 §Account deletion). Session protocol is in docs/04 §Auth.\n"
+    },
+    "profile" : {
+      "schema" : "profile",
+      "owns" : [ "nicknames", "representations", "prompt answers", "interest selections", "bios" ],
+      "calls" : [ "identity.api", "content.api", "media.api", "safety.api" ],
+      "subscribes" : {
+        "identity" : [ "AccountDeleted" ]
+      },
+      "publishes" : [ "ProfileUpdated", "RepresentationChanged", "ProfilePurged" ],
+      "notes" : "Calls content because an interest id arriving from a client is untrusted input: \"the client got the list from us\" is not validation. Calls media to verify a representation is owned, ready and past moderation. Calls safety because a nickname, bio or prompt answer is classified at save time — a profile is a broadcast surface, and a slur in a bio reaches more people than one in a message (docs/06 §Layer 2).\n"
+    },
+    "quiz" : {
+      "schema" : "quiz",
+      "owns" : [ "results", "collections", "trait signals" ],
+      "calls" : [ "identity.api", "content.api" ],
+      "subscribes" : {
+        "identity" : [ "AccountDeleted" ]
+      },
+      "publishes" : [ "ResultEarned", "ResultRemoved", "TraitSignalChanged" ]
+    },
+    "discovery" : {
+      "schema" : "discovery",
+      "owns" : [ "candidate projection", "ranking", "impressions", "exposure fatigue" ],
+      "calls" : [ "safety.api" ],
+      "subscribes" : {
+        "profile" : [ "ProfileUpdated", "RepresentationChanged", "ProfilePurged" ],
+        "quiz" : [ "ResultEarned", "ResultRemoved", "TraitSignalChanged" ],
+        "safety" : [ "ContactEligibilityChanged" ],
+        "commerce" : [ "BoostStarted", "BoostEnded" ],
+        "messaging" : [ "InboundRequestStateChanged" ],
+        "identity" : [ "AccountDeleted", "AccountBanned" ]
+      },
+      "notes" : "Calls exactly one module, and only at request time: a bulk eligibility filter. Everything else arrives as events into its projection.\nThis split is the point. Being allowed to consume profile's events is not permission to call ProfileApi per card — that would be an N+1 across a module boundary on the product's main surface.\nHard exclusions are never eventual. A block, a ban or a cooldown arriving three seconds late would put an excluded profile back in the feed, which would put eventual consistency inside a product invariant. So the projection carries ranking material — proximity, freshness, fatigue, boost state, capacity pressure — and `safety.api.filterEligible(viewer, candidateIds)` is called once, synchronously, with the whole candidate batch before ranking. One call, authoritative, not fifty.\nTwo different policies, deliberately separate API methods: `filterDiscoverable(viewer, ids)` applies only HARD VISIBILITY exclusions — block, ban, account state, hard cooldown. `contactPolicy(sender, receiver)` answers the composer-time question — door mode, effort floor, inbound capacity, contact restrictions.\nBeing visible and being writable-to are not the same thing. A receiver who requires a profile must still appear in Discover; that setting decides the identity state of a request, not whether they exist. Collapsing the two would let a future change quietly remove people from the feed for having adjusted a preference.\nThe visibility call is authoritative to the bottom: safety asks identity for the active set in the same batch, so a deleted, banned or deactivated account is excluded even if the projection has not caught up. Otherwise a person deleted half a second ago is still a candidate, and the one guarantee that must never be eventual would be exactly as eventual as the projection.\n"
+    },
+    "messaging" : {
+      "schema" : "messaging",
+      "owns" : [ "requests", "conversations", "conversation handles", "messages", "anchor snapshots" ],
+      "calls" : [ "identity.api", "safety.api", "commerce.api", "profile.api", "quiz.api" ],
+      "subscribes" : {
+        "identity" : [ "AccountDeleted" ]
+      },
+      "publishes" : [ "InboundRequestStateChanged", "MessageSent" ],
+      "notes" : "Calls commerce because it is the only module that can compose the effective ceiling. Safety must not see who paid, so safety returns a safety cap and commerce returns a plan allowance, and messaging takes the minimum (docs/06 §Quotas). Neither module alone can compute it, and that is deliberate.\nCalls profile and quiz to resolve an anchor. A client sends a reference; messaging verifies it exists and belongs to the receiver, then stores a SNAPSHOT — if the receiver edits that prompt tomorrow, a request from three months ago must still say what it was written from.\nOn AccountDeleted it severs identity linkage rather than deleting delivered messages (docs/01 §Account deletion).\n"
+    },
+    "safety" : {
+      "schema" : "safety",
+      "owns" : [ "doors", "trust states", "reports", "enforcement actions", "blocks", "cooldowns", "safety caps", "inbound admission capacity", "moderation queue" ],
+      "calls" : [ "identity.api" ],
+      "subscribes" : {
+        "identity" : [ "AccountDeleted", "AccountBanned" ],
+        "messaging" : [ "InboundRequestStateChanged", "MessageSent" ]
+      },
+      "publishes" : [ "ContactEligibilityChanged", "EnforcementApplied" ],
+      "notes" : "Exposes two distinct questions rather than one blurred one: `filterDiscoverable` (hard visibility: block, ban, account state, hard cooldown) and `contactPolicy` (door mode, effort floor, capacity, contact restrictions). Projections may be stale; neither of these may be.\nOwns admission capacity authoritatively. \"Can this person accept another request right now?\" is a contact-authorisation question, not a ranking question — so it is answered here, synchronously, at request creation. Discovery consumes capacity *pressure* as a ranking input and lowers exposure; it never decides admission.\nDoes not depend on commerce and never learns who paid, which is what makes \"money never relaxes a safety restriction\" structural rather than remembered.\n"
+    },
+    "commerce" : {
+      "schema" : "commerce",
+      "owns" : [ "subscriptions", "boosts", "entitlements", "plan caps" ],
+      "calls" : [ "identity.api" ],
+      "subscribes" : {
+        "identity" : [ "AccountDeleted" ]
+      },
+      "publishes" : [ "BoostStarted", "BoostEnded" ]
+    },
+    "content" : {
+      "schema" : "content",
+      "owns" : [ "versioned quiz documents", "interest lists", "taxonomy", "prompt question bank" ],
+      "calls" : [ ],
+      "publishes" : [ ],
+      "notes" : "Ranking weights are NOT content. Content carries text and the weights a quiz answer contributes to a trait; discovery's ranking weights are behaviour and live in remote configuration owned by discovery.\n"
+    },
+    "media" : {
+      "schema" : "media",
+      "owns" : [ "uploads", "object keys", "variants", "moderation state" ],
+      "calls" : [ "identity.api" ],
+      "subscribes" : {
+        "identity" : [ "AccountDeleted" ]
+      },
+      "publishes" : [ ],
+      "notes" : "On AccountDeleted, stored objects are deleted, not merely unlinked."
+    },
+    "notification" : {
+      "schema" : "notification",
+      "owns" : [ "device tokens", "delivery attempts", "preferences" ],
+      "calls" : [ "identity.api" ],
+      "subscribes" : {
+        "messaging" : [ "InboundRequestStateChanged", "MessageSent" ],
+        "safety" : [ "EnforcementApplied" ],
+        "identity" : [ "AccountDeleted" ]
+      },
+      "notes" : "Subscribes and is never called. Nothing waits on a push being sent."
+    }
+  },
+  "flutter" : {
+    "packages" : {
+      "foundation" : {
+        "dependencies" : [ ]
+      },
+      "lemon_lints" : {
+        "dependencies" : [ ]
+      },
+      "lemon_ui" : {
+        "dependencies" : [ "foundation" ]
+      },
+      "api_client" : {
+        "dependencies" : [ "foundation" ],
+        "generated_from" : "contracts/http/public-v1.yaml"
+      },
+      "admin_api_client" : {
+        "dependencies" : [ "foundation" ],
+        "generated_from" : "contracts/http/admin-v1.yaml"
+      },
+      "telemetry" : {
+        "dependencies" : [ "foundation" ],
+        "notes" : "typed analytics; the vendor SDK exists only here"
+      },
+      "realtime_client" : {
+        "dependencies" : [ "foundation" ],
+        "notes" : "socket envelope, dedupe, reconnect, HTTP reconciliation"
+      },
+      "secure_store" : {
+        "dependencies" : [ "foundation" ],
+        "notes" : "platform keystore; the only package that knows what a keychain is"
+      }
+    },
+    "features" : {
+      "identity" : {
+        "dependencies" : [ "foundation", "api_client", "lemon_ui", "telemetry", "secure_store" ]
+      },
+      "profile" : {
+        "dependencies" : [ "foundation", "api_client", "lemon_ui", "telemetry" ]
+      },
+      "quiz" : {
+        "dependencies" : [ "foundation", "api_client", "lemon_ui", "telemetry" ]
+      },
+      "discovery" : {
+        "dependencies" : [ "foundation", "api_client", "lemon_ui", "telemetry" ]
+      },
+      "messaging" : {
+        "dependencies" : [ "foundation", "api_client", "lemon_ui", "telemetry", "realtime_client" ]
+      },
+      "safety" : {
+        "dependencies" : [ "foundation", "api_client", "lemon_ui", "telemetry" ]
+      },
+      "commerce" : {
+        "dependencies" : [ "foundation", "api_client", "lemon_ui", "telemetry" ]
+      }
+    },
+    "apps" : {
+      "mobile" : {
+        "dependencies" : [ "all_features", "lemon_ui", "foundation", "telemetry", "realtime_client", "secure_store" ]
+      },
+      "widgetbook" : {
+        "dependencies" : [ "lemon_ui" ]
+      },
+      "moderation" : {
+        "dependencies" : [ "admin_api_client", "lemon_ui", "foundation" ]
+      }
+    },
+    "notes" : "The real boundary is the pubspec dependency graph, not the src/ directory. Dart does not prevent importing package:foo/src/x.dart — a lint discourages it. What actually stops messaging from using profile is that profile is not in messaging's pubspec, and a CI check that this graph matches this file. An AI adding the dependency to get its import to work fails that check.\nNo feature depends on another. They still reach each other — discovery opens a profile, a profile opens the composer — and apps/mobile owns that: a feature exposes routes and emits navigation intents, the shell wires them. That is why the shell is the only thing depending on everything.\nEach feature is layered internally: domain (pure Dart) → application → data → presentation.\n"
+  },
+  "absent" : [ "external message broker (Kafka, RabbitMQ)", "Redis", "Kubernetes, service mesh, microservices", "GraphQL", "an ORM with lifecycle magic" ]
+}

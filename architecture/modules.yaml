@@ -21,7 +21,7 @@ version: 1
 policies:
 
   graph:
-    cycles: forbidden
+    synchronous_call_cycles: forbidden
     undeclared_dependencies: forbidden
 
   cross_module:
@@ -69,11 +69,16 @@ policies:
     owner: outermost_application_operation
     synchronous_module_calls: join_caller_transaction
     external_io_inside_transaction: forbidden      # no vendor HTTP, no SMS, no push
-    requires_new: approval_required
+    external_io_marker: fm.lemon.architecture.ExternalIo
+    external_io_scope: capability
+    requires_new:
+      application_code: forbidden
+      framework_exceptions: [spring_modulith_application_module_listener]
 
   events:
     delivery: in_process_durable
     guarantee: at_least_once      # never exactly-once; handlers must be idempotent
+    handler_idempotency: required
     payloads_may_expose: [api_types, jdk_types]
     required_fields: [eventId, aggregateId, aggregateVersion, occurredAt]
     ordering: monotonic_per_aggregate   # a projection never applies N after N+1
@@ -87,19 +92,19 @@ policies:
 # How each policy is actually enforced. Named here so a claim in a document can
 # be checked against a mechanism that exists.
 enforcement:
-  graph.cycles: [spring_modulith]
-  graph.undeclared_dependencies: [spring_modulith, pubspec_graph_check, lemon_lints]
-  cross_module.calls: [spring_modulith, lemon_lints, pubspec_graph_check]
-  cross_module.subscriptions: [spring_modulith]
+  graph.synchronous_call_cycles: [generated_call_graph_check]
+  graph.undeclared_dependencies: [spring_modulith_typed_dependencies, pubspec_graph_check, lemon_lints]
+  cross_module.calls: [spring_modulith_typed_dependencies, lemon_lints, pubspec_graph_check]
+  cross_module.subscriptions: [spring_modulith_typed_dependencies]
   cross_module.api_signatures: [archunit]
   persistence.cross_schema_access: [archunit]
   domain_layer.forbidden_namespaces: [archunit, lemon_lints]
   domain_layer.forbidden_calls: [lemon_lints, forbidden_apis]
   layers.order: [archunit]
-  transactions.external_io: [archunit_external_io_marker]
-  transactions.requires_new: [archunit]
+  transactions.external_io_inside_transaction: [archunit_external_io_marker]
+  transactions.requires_new.application_code: [archunit]
   events.no_orphan: [generator_check]
-  events.handler_idempotent: [review, integration_test]
+  events.handler_idempotency: [review, integration_test]
 
 # ---------------------------------------------------------------------------
 # Backend — Spring Modulith application modules under fm.lemon

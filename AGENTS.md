@@ -32,7 +32,7 @@ Source: `00-product.md` §What Lemon.fm is — copied byte for byte.
 | What is the system made of, what rules must hold | `docs/01-domain.md` |
 | Which screens exist, how do they behave | `docs/02-experience.md` |
 | What does anything look like | `docs/03-design-system.md` |
-| How is the system divided, what owns what | `docs/04-architecture.md` |
+| How is the system divided, what owns what data | `docs/04-architecture.md` |
 | What is the interface between the apps | `docs/05-contracts.md` |
 | What must never happen to a person | `docs/06-safety.md` |
 | Quizzes, results, interests, how they are written | `docs/07-content.md` |
@@ -48,8 +48,6 @@ subject wins and the other is wrong — report it rather than picking one.
 
 # Laws
 
-## Product
-
 ### `measurement.legitimacy-named-not-counted`
 
 Shown as things, never as counts. "Eight shared points" is a compatibility
@@ -57,7 +55,7 @@ score wearing a different hat, and "solved 36 quizzes" is a reputation score —
 both are exactly the measurement this product refuses. Naming what is shared
 gives a receiver something to judge; counting it gives them something to rank.
 
-Source: `00-product.md` §Vocabulary
+Source: `00-product.md`
 
 ### `vocabulary.no-match`
 
@@ -65,10 +63,7 @@ Source: `00-product.md` §Vocabulary
 product refusing the swipe category cannot borrow the word that defines it, and
 a word that survives in one badge spreads to every screen inside a month.
 
-Source: `00-product.md` §Vocabulary
-
-
-## Domain
+Source: `00-product.md`
 
 ### `collection.results-equal`
 
@@ -78,7 +73,7 @@ theme. A profile is neutral and typographic. This is not a visual preference: a
 chosen headline identity is a ranking of your own selves, and the product does
 not rank.
 
-Source: `01-domain.md` §Collection
+Source: `01-domain.md`
 
 ### `signal.resolve-cannot-inflate`
 
@@ -87,14 +82,14 @@ increasing its weight**: each quiz contributes once, normalised, however many
 times it is taken. Otherwise a person could dominate an axis by repetition, and
 the signal would measure persistence rather than personality.
 
-Source: `01-domain.md` §Quiz
+Source: `01-domain.md`
 
 ### `vocabulary.result-reserved`
 
 **The word "Result" is reserved for this, in code as well as in copy.** A generic
 success-or-failure wrapper is named `Outcome`, never `Result`
 
-Source: `01-domain.md` §Result (Sonuç)
+Source: `01-domain.md`
 
 ### `signal.never-surfaced`
 
@@ -102,7 +97,7 @@ Source: `01-domain.md` §Result (Sonuç)
 two signals, or anything computed from them.** Ranking may use it. Nothing may
 display it.
 
-Source: `01-domain.md` §Trait signal
+Source: `01-domain.md`
 
 ### `identity.sender-never-chooses`
 
@@ -110,14 +105,14 @@ The door belongs to the receiver. **A sender never chooses, never sees the
 setting, and never negotiates it** — they are told which one applies to the
 person they are writing to, and that is all.
 
-Source: `01-domain.md` §Door
+Source: `01-domain.md`
 
 ### `identity.state-frozen`
 
 Its identity state — anonymous or open — is **decided by the receiver's door at
 the moment the request is created, and frozen forever after**.
 
-Source: `01-domain.md` §Request (İstek)
+Source: `01-domain.md`
 
 ### `identity.anonymity-permanent`
 
@@ -126,19 +121,19 @@ An anonymous conversation stays anonymous through its thousandth message. There
 is no reveal action, no mutual unmask, no milestone that suggests one, and no
 way for a receiver to request one.
 
-Source: `01-domain.md` §Conversation
+Source: `01-domain.md`
 
 ### `duo.no-score`
 
 **A duo quiz produces two results, never a score.**
 
-Source: `01-domain.md` §Duo quiz
+Source: `01-domain.md`
 
 ### `message.no-edit-no-unsent`
 
 **A message cannot be edited or unsent.**
 
-Source: `01-domain.md` §Message
+Source: `01-domain.md`
 
 ### `commerce.no-identity-purchase`
 
@@ -146,23 +141,20 @@ Source: `01-domain.md` §Message
 sender is, or exposes a trait signal, or unmasks anything the free product
 hides.
 
-Source: `01-domain.md` §Commerce
+Source: `01-domain.md`
 
 ### `deletion.ban-anchors-survive`
 
 **Ban identifiers survive deletion.**
 
-Source: `01-domain.md` §Account deletion
+Source: `01-domain.md`
 
 ### `saved.never-notified`
 
 **The saved person is never notified and can
 never learn they were saved.**
 
-Source: `01-domain.md` §Saved
-
-
-## Experience
+Source: `01-domain.md`
 
 ### `experience.identity-state-visible`
 
@@ -170,10 +162,7 @@ Source: `01-domain.md` §Saved
 uncertain whether they are anonymous states it outright — before writing, while
 writing, and in the conversation forever after.
 
-Source: `02-experience.md` §Cross-cutting behaviours
-
-
-## Design system
+Source: `02-experience.md`
 
 ### `design.behaviour-not-appearance`
 
@@ -187,29 +176,26 @@ Source: `03-design-system.md`
 - **Outlined yellow, or yellow text, means signal.** A shared-point chip, a
   proximity badge, the active navigation destination, a focus ring.
 
-Source: `03-design-system.md` §One accent, two grammars
-
-
-## Architecture
+Source: `03-design-system.md`
 
 ### `arch.no-shared-package`
 
 **There is no `core`, `common` or `shared` package.**
 
-Source: `04-architecture.md` §Repository
+Source: `04-architecture.md`
 
 ### `arch.modules-are-capabilities`
 
 **Layers are not modules.**
 
-Source: `04-architecture.md` §Modules are business capabilities, not layers
+Source: `04-architecture.md`
 
 ### `arch.schema-ownership`
 
 **No module queries another module's schema.** Ever, in any query, for any
 reason. Cross-module reads go through the owning module's `api`.
 
-Source: `04-architecture.md` §Data
+Source: `04-architecture.md`
 
 ### `arch.transaction-boundary`
 
@@ -217,7 +203,7 @@ Source: `04-architecture.md` §Data
 > calls into other modules join it. No outbound external I/O happens inside
 > it.**
 
-Source: `04-architecture.md` §Transactions
+Source: `04-architecture.md`
 
 ### `arch.api-no-domain-leak`
 
@@ -225,85 +211,73 @@ Source: `04-architecture.md` §Transactions
 and foundation primitives. Never domain, application, infrastructure or
 generated persistence types.**
 
-Source: `04-architecture.md` §A module's `api` may not leak its insides
+Source: `04-architecture.md`
 
 ### `arch.sync-vs-event`
 
 > **"May this happen?" is a synchronous call. "This happened" is an event.**
 
-Source: `04-architecture.md` §Events
+Source: `04-architecture.md`
 
 ### `arch.features-are-packages`
 
 **Every feature is a real package, not a folder.**
 
-Source: `04-architecture.md` §Mobile
-
-
-## Contracts
+Source: `04-architecture.md`
 
 ### `contracts.authored-vs-generated`
 
 Contracts are authored. **Bindings** are generated. Editing a generated file is
 a build failure; editing a contract is a reviewed decision.
 
-Source: `05-contracts.md` §Authored, then generated
+Source: `05-contracts.md`
 
 ### `contracts.admin-separate`
 
 They are separate specifications generating separate clients, and the shipped
 mobile binary is built **only** from the public one.
 
-Source: `05-contracts.md` §Two HTTP surfaces, not one
+Source: `05-contracts.md`
 
 ### `contracts.no-backend-copy`
 
 **The backend never sends user-facing text.**
 
-Source: `05-contracts.md` §Errors
-
-
-## Safety
+Source: `05-contracts.md`
 
 ### `safety.quota-composition`
 
 The effective ceiling is the **minimum of every cap that applies**: plan,
 safety, trust, probation.
 
-Source: `06-safety.md` §Quotas
+Source: `06-safety.md`
 
 ### `safety.admission-not-burial`
 
 **Volume is handled by admission control instead: do not bury after creation,
 control admission before it.**
 
-Source: `06-safety.md` §The door — "Kimler yazabilir?"
+Source: `06-safety.md`
 
 ### `safety.no-fake-delivery`
 
 **A silent decline is not a fake successful send.**
 
-Source: `06-safety.md` §Re-contact
-
-
-## Content
+Source: `06-safety.md`
 
 ### `content.no-behaviour`
 
 What content still cannot do is change behaviour — it carries text
 and weights, never rules
 
-Source: `07-content.md` §Pipeline
-
-
-## Quality
+Source: `07-content.md`
 
 ### `quality.dependency-approval`
 
 **A new dependency requires explicit approval** and never arrives inside a
 feature slice. A dependency added quietly is a decision nobody made.
 
-Source: `08-quality.md` §Boundaries
+Source: `08-quality.md`
 
 ### `quality.provisional`
 
@@ -312,13 +286,13 @@ the pull request, and builds the rest of the slice. **CI fails on the marker**,
 so this is not a way to defer work — it is a build failure the session declares
 on itself, and only an answer clears it.
 
-Source: `08-quality.md` §The `PROVISIONAL` protocol
+Source: `08-quality.md`
 
 ### `quality.gates-proven`
 
 **Every gate must be proven to bite.**
 
-Source: `08-quality.md` §Continuous integration
+Source: `08-quality.md`
 
 ---
 
@@ -356,7 +330,6 @@ docs/           the source of truth
 
 The exact package list and every dependency between them lives in
 `architecture/modules.yaml`. It is not repeated here.
-
 
 `fm.lemon` is the Android application id, the iOS bundle id and the Java base
 package. Irreversible after the first store submission.

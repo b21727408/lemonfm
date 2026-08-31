@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+GRADLE="$ROOT/gradlew"
+
+architecture() {
+  "$GRADLE" --quiet :tooling:architecture:run --args="$*"
+}
+
+case "${1:-}" in
+  generate)
+    architecture generate
+    ;;
+  check)
+    scope="${3:-all}"
+    if [[ "${2:-}" != "--scope" ]]; then
+      scope="all"
+    fi
+    architecture "check $scope"
+    ;;
+  test)
+    architecture validate
+    "$GRADLE" test
+    ;;
+  fix)
+    architecture generate
+    "$GRADLE" spotlessApply
+    dart format .
+    ;;
+  dev)
+    docker compose up -d postgres
+    "$GRADLE" :backend:bootRun
+    ;;
+  *)
+    echo "usage: ./lemon {check|test|fix|generate|dev} [--scope <scope>]" >&2
+    exit 64
+    ;;
+esac
