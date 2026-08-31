@@ -154,13 +154,37 @@ jobs:
         env:
           LEMON_BUILD_TARGETS: ${{ matrix.targets }}
 
+  final-verification:
+    name: Final repository verification
+    needs: build-smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
+        with:
+          distribution: temurin
+          java-version: 21.0.10+7
+          cache: gradle
+      - uses: ./.github/actions/setup-flutter
+        with:
+          version: ${{ env.FLUTTER_VERSION }}
+          linux-sha256: ${{ env.FLUTTER_LINUX_SHA256 }}
+          macos-sha256: ${{ env.FLUTTER_MACOS_SHA256 }}
+      - run: ./lemon generate
+      - run: git diff --exit-code
+      - run: ./lemon test
+      - run: ./lemon check
+      - run: git diff --exit-code
+
   pr-gate:
     name: PR gate
     if: always()
-    needs: build-smoke
+    needs: final-verification
     runs-on: ubuntu-24.04
     steps:
       - name: Require every preceding job
         env:
-          RESULT: ${{ needs.build-smoke.result }}
+          RESULT: ${{ needs.final-verification.result }}
         run: test "$RESULT" = success
