@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - run: ./lemon check --scope policy
 
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - run: ./lemon check --scope backend-fast
 
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - uses: ./.github/actions/setup-flutter
         with:
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - uses: ./.github/actions/setup-flutter
         with:
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - uses: ./.github/actions/setup-flutter
         with:
@@ -109,7 +109,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - run: ./lemon check --scope contracts
 
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - run: ./lemon check --scope postgres-integration
 
@@ -143,7 +143,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - uses: ./.github/actions/setup-flutter
         with:
@@ -165,7 +165,7 @@ jobs:
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
-          java-version: 21.0.10+7
+          java-version: 21.0.12+101.0.LTS
           cache: gradle
       - uses: ./.github/actions/setup-flutter
         with:
