@@ -142,8 +142,8 @@ gitleaks_check() {
 
 dependency_integrity() {
   flutter_pub_get
-  "$GRADLE" :backend:dependencies :tooling:architecture:dependencies
-  "$GRADLE" -p build-logic dependencies
+  "$GRADLE" :backend:dependencies :tooling:architecture:dependencies >/dev/null
+  "$GRADLE" -p build-logic dependencies >/dev/null
   git diff --exit-code -- '**/gradle.lockfile' pubspec.lock gradle/verification-metadata.xml
 }
 
