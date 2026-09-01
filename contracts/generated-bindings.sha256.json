@@ -9,7 +9,7 @@
     "backend/src/generated/openapi/admin/fm/lemon/generated/contract/adminv1/model/ContractFixtureResponse.java" : "0f2d5a1c362cc0a5497961a52a6e306a45121b3f6c4e78f7c22f9c4d2217de27",
     "backend/src/generated/openapi/public/fm/lemon/generated/contract/publicv1/api/ContractFixtureApi.java" : "bf3f5d3f1b364c8bd47b776fc70c88d7f222888ad52557c1dc959bf43e143d5a",
     "backend/src/generated/openapi/public/fm/lemon/generated/contract/publicv1/model/ContractFixtureResponse.java" : "b09f5d905bddd1d5de3900639b073735c9123821e08ec844741d041c75da2369",
-    "contracts/generated/fixture-contracts.json" : "f4e354ba47edb05ff3be80924cb90f5c505896db4da010663d0b44d9463c23e0",
+    "contracts/generated/fixture-contracts.json" : "2b2a3aa45c470d4d678bb9d5235a75ea47fa8ef4caa4cd2338359f0293758079",
     "packages/admin_api_client/lib/admin_api_client.dart" : "064a1964804be0406b1a423b4909c5a82609cae7e0dccf0d2815f7c375c04506",
     "packages/admin_api_client/lib/src/api.dart" : "ee869de067dff1dfd7c4502399fc2b02d5a86b0b84505592c0dc451df6c885b8",
     "packages/admin_api_client/lib/src/api/contract_fixture_api.dart" : "00e91808083b239d2eef82cb03ab0904df19adca8ae95298d08d404c39c3ee6e",

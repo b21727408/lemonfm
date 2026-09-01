@@ -4,6 +4,7 @@ import static fm.lemon.tooling.architecture.ToolSupport.JSON;
 import static fm.lemon.tooling.architecture.ToolSupport.YAML;
 import static fm.lemon.tooling.architecture.ToolSupport.fail;
 import static fm.lemon.tooling.architecture.ToolSupport.fieldNames;
+import static fm.lemon.tooling.architecture.ToolSupport.normalize;
 import static fm.lemon.tooling.architecture.ToolSupport.slash;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -78,7 +79,7 @@ final class GeneratedArtifactProducer {
 
   private Map<Path, String> outputs() throws IOException {
     Map<Path, String> outputs = new LinkedHashMap<>();
-    String normalized = JSON.writeValueAsString(modules) + "\n";
+    String normalized = json(modules);
     outputs.put(Path.of("architecture/generated/modules.json"), normalized);
     outputs.put(Path.of("backend/src/test/resources/generated/modules.json"), normalized);
     outputs.put(
@@ -179,7 +180,7 @@ final class GeneratedArtifactProducer {
     addFlutterUnits(graph, "packages", flutter.path("packages"), Set.of());
     addFlutterUnits(graph, "features", flutter.path("features"), Set.of());
     addFlutterUnits(graph, "apps", flutter.path("apps"), fieldNames(flutter.path("features")));
-    return JSON.writeValueAsString(graph) + "\n";
+    return json(graph);
   }
 
   private static void addFlutterUnits(
@@ -260,7 +261,7 @@ final class GeneratedArtifactProducer {
     Map<String, Object> fixtures = new LinkedHashMap<>();
     fixtures.put("public", contractFixture("public-v1.yaml"));
     fixtures.put("admin", contractFixture("admin-v1.yaml"));
-    return JSON.writeValueAsString(fixtures) + "\n";
+    return json(fixtures);
   }
 
   private Map<String, String> contractFixture(String file) throws IOException {
@@ -308,7 +309,11 @@ final class GeneratedArtifactProducer {
     manifest.put("algorithm", "SHA-256");
     manifest.put("authoredSources", sources);
     manifest.put("generatedOutputs", generated);
-    return JSON.writeValueAsString(manifest) + "\n";
+    return json(manifest);
+  }
+
+  private static String json(Object value) throws JsonProcessingException {
+    return normalize(JSON.writeValueAsString(value)) + "\n";
   }
 
   private void addContractOutputHashes(Map<String, String> outputs, Path relativeRoot)
