@@ -85,7 +85,7 @@ final class RuntimeDatabaseOwnershipTest {
     }
   }
 
-  static final class RegistryFixtureListener {
+  static class RegistryFixtureListener {
     private final CountDownLatch completed = new CountDownLatch(1);
 
     @ApplicationModuleListener
