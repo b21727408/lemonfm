@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,10 +47,9 @@ final class RuntimeDatabaseOwnershipTest {
       DatabaseScaffold.migrate(container);
 
       try (ConfigurableApplicationContext context = startApplication(container)) {
-        ApplicationEventPublisher publisher = context.getBean(ApplicationEventPublisher.class);
         PlatformTransactionManager transactions = context.getBean(PlatformTransactionManager.class);
         new TransactionTemplate(transactions)
-            .executeWithoutResult(ignored -> publisher.publishEvent(new RegistryFixtureEvent()));
+            .executeWithoutResult(ignored -> context.publishEvent(new RegistryFixtureEvent()));
         assertTrue(
             context.getBean(RegistryFixtureListener.class).await(),
             "the durable event listener did not complete");
