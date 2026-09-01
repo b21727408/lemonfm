@@ -55,8 +55,8 @@ drifted once.
 
 ## Getting started
 
-Prerequisites and exact versions are pinned in the repository and listed in
-[`docs/08-quality`](docs/08-quality.md).
+Prerequisites are described in [`docs/08-quality`](docs/08-quality.md); exact
+tool and dependency versions are pinned by the repository itself.
 
 ```bash
 docker compose up postgres                    # the only Phase 0 dependency
@@ -71,6 +71,9 @@ One command surface, and CI runs the same commands:
 ./lemon fix        # format and autofix
 ./lemon generate   # clients, tokens, AGENTS.md, boundary rules
 ```
+
+On Windows, `lemon.cmd` exposes the same commands by delegating to the single
+Git-for-Windows Bash implementation; it contains no duplicated build logic.
 
 ## Working here
 

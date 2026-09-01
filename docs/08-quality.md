@@ -139,11 +139,22 @@ Four rules, each enforced:
    change build logic, dependency policy or a quality gate.** A task that needs
    to change build infrastructure is a build-infrastructure task, and says so.
 
+The mechanical plugin-list gate treats the root aggregator build, convention
+plugin implementations under `build-logic/`, and Flutter-managed Android runner
+builds as explicit build-infrastructure exceptions. Backend and repository
+tooling project build files contain only their `plugins` block.
+
 **Dependency locking and dependency verification are both on**, because they
 answer different questions: locking asks whether today's dependency graph is the
 same as yesterday's; verification asks whether the artefact downloaded is the
 artefact expected. The Gradle wrapper and the Java toolchain are pinned, so a
 build never depends on whatever JDK a machine happens to have.
+
+Existing Flyway migration files are append-only. Pull-request comparison with
+the merge base rejects modifications, deletions, renames and type changes;
+adding a new versioned migration remains allowed. Refreshing dependency locks or
+verification metadata is an explicit maintenance/generation action and never a
+side effect of `./lemon check`.
 
 ## Boundaries
 
@@ -176,9 +187,12 @@ that classification. Other `DEFAULT` facts require call permission.
 Jackson, no HTTP, no other module; layer direction `infrastructure → application
 → domain`, and `domain` depending on nothing.
 
-**ArchUnit schema ownership** — a module's infrastructure may not reference
-another schema's generated jOOQ types. jOOQ's per-schema packages make a
-cross-schema query *visible*; the rule is what makes it fail.
+**Persistence ownership** — ArchUnit rejects another module's generated jOOQ
+types, and repository policy rejects raw schema-qualified SQL and string-based
+jOOQ identifiers in first-party application sources. Persistence code uses its
+owned generated jOOQ schema and table types. Raw SQL is confined to Flyway
+migrations or a separately approved infrastructure boundary, so replacing a
+generated table reference with `"profile.person"` cannot evade the module gate.
 
 **The pubspec dependency graph, checked against `modules.yaml`** — this is the
 real Flutter boundary. Dart does not hide `lib/src/`; what stops messaging from
@@ -202,7 +216,9 @@ mistake nobody has made costs maintenance and catches nothing.
 
 **Repository-wide scans that fail the build:** the word "match" in any locale
 file (`00` §Vocabulary) · any `PROVISIONAL` marker · any hand-edited generated
-file.
+file. Checksum-pinned Gitleaks owns secret scanning; the repository policy tool
+does not maintain a competing partial secret detector. Checksum-pinned `oasdiff`
+owns OpenAPI breaking-change detection, with Lemon-specific orchestration only.
 
 <!-- agent-law:id=quality.dependency-approval -->
 **A new dependency requires explicit approval** and never arrives inside a
@@ -362,6 +378,9 @@ worse than having no constitution at all.
 ./lemon dev
 ```
 
+`lemon.cmd` is the Windows entry point and delegates to that same implementation;
+it is not a second command graph.
+
 **CI runs the same commands.** A session is told "run `./lemon check`" rather
 than being handed forty tool invocations, and "it passed locally but failed in
 CI" stops being a category of problem.
@@ -383,6 +402,8 @@ contracts — authored specs, both generated sides, breaking-change diff
 postgres-integration — Testcontainers, migration replay, schema ownership
             ↓
 build-smoke — declared runtime and Flutter targets
+            ↓
+final-verification — generate, drift, test, complete local check
             ↓
 pr-gate
 ```
