@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public final class PublicContractFixtureController implements ContractFixtureApi {
+public class PublicContractFixtureController implements ContractFixtureApi {
   @Override
   public ResponseEntity<ContractFixtureResponse> getPublicContractFixture() {
     ContractFixtureResponse response =
