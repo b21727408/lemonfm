@@ -67,12 +67,11 @@ final class RuntimeDatabaseOwnershipTest {
 
   private static ConfigurableApplicationContext startApplication(PostgreSQLContainer container) {
     return new SpringApplicationBuilder(LemonApplication.class, RegistryFixtureConfiguration.class)
-        .properties(
-            "spring.main.web-application-type=none",
-            "spring.datasource.url=" + container.getJdbcUrl(),
-            "spring.datasource.username=" + container.getUsername(),
-            "spring.datasource.password=" + container.getPassword())
-        .run();
+        .run(
+            "--spring.main.web-application-type=none",
+            "--spring.datasource.url=" + container.getJdbcUrl(),
+            "--spring.datasource.username=" + container.getUsername(),
+            "--spring.datasource.password=" + container.getPassword());
   }
 
   record RegistryFixtureEvent() {}
