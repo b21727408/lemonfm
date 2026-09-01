@@ -113,6 +113,11 @@ jobs:
           distribution: temurin
           java-version: 21.0.12+101.0.LTS
           cache: gradle
+      - uses: ./.github/actions/setup-flutter
+        with:
+          version: ${{ env.FLUTTER_VERSION }}
+          linux-sha256: ${{ env.FLUTTER_LINUX_SHA256 }}
+          macos-sha256: ${{ env.FLUTTER_MACOS_SHA256 }}
       - run: ./lemon check --scope contracts
 
   postgres-integration:
