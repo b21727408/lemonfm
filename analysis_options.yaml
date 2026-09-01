@@ -4,8 +4,7 @@ analyzer:
   exclude:
     - backend/**
     - build/**
-    - packages/api_client/lib/**
-    - packages/admin_api_client/lib/**
+    - packages/lemon_lints/test_fixtures/**
   language:
     strict-casts: true
     strict-inference: true

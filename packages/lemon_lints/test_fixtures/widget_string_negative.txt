@@ -1,0 +1,3 @@
+void fixture() {
+  const Text('Visible copy');
+}

@@ -1,6 +1,7 @@
 package fm.lemon.database;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Connection;
@@ -24,6 +25,8 @@ final class MigrationReplayTest {
       try (Connection connection = DatabaseScaffold.connect(container)) {
         assertEquals(expectedSchemas(), applicationSchemas(connection));
         assertTrue(tableExists(connection, "platform", "flyway_schema_history"));
+        assertTrue(tableExists(connection, "platform", "event_publication"));
+        assertFalse(tableExists(connection, "public", "event_publication"));
       }
 
       MigrateResult secondRun = DatabaseScaffold.migrate(container).migrate();

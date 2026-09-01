@@ -3,9 +3,8 @@
 # The single definition of every boundary in this system, expressed so a
 # generator can read it rather than so a human can admire it.
 #
-# Generates:  Spring Modulith configuration · ArchUnit rules · lemon_lints
-#             package rules · the pubspec dependency check · the tables in
-#             docs/04-architecture.md · the architecture diagram
+# Generates:  backend policy inputs and module shells · lemon_lints package
+#             rules · the pubspec dependency graph · deterministic policy data
 #
 # This file validates against architecture/modules.schema.json before anything
 # is generated from it. An unknown field is a build failure — a typo in a
@@ -97,7 +96,7 @@ enforcement:
   cross_module.calls: [spring_modulith_typed_dependencies, lemon_lints, pubspec_graph_check]
   cross_module.subscriptions: [spring_modulith_typed_dependencies]
   cross_module.api_signatures: [archunit]
-  persistence.cross_schema_access: [archunit]
+  persistence.cross_schema_access: [archunit, repository_sql_boundary]
   domain_layer.forbidden_namespaces: [archunit, lemon_lints]
   domain_layer.forbidden_calls: [lemon_lints, forbidden_apis]
   layers.order: [archunit]
@@ -167,7 +166,7 @@ backend:
       three seconds late would put an excluded profile back in the feed, which
       would put eventual consistency inside a product invariant. So the
       projection carries ranking material — proximity, freshness, fatigue,
-      boost state, capacity pressure — and `safety.api.filterEligible(viewer,
+      boost state, capacity pressure — and `safety.api.filterDiscoverable(viewer,
       candidateIds)` is called once, synchronously, with the whole candidate
       batch before ranking. One call, authoritative, not fifty.
 

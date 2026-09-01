@@ -209,6 +209,7 @@
           "integration_test",
           "lemon_lints",
           "pubspec_graph_check",
+          "repository_sql_boundary",
           "review",
           "spring_modulith_typed_dependencies"
         ]

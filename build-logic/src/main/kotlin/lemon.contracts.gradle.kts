@@ -64,7 +64,7 @@ fun registerServerGenerator(name: String, surface: String, specification: String
 
 fun registerClientGenerator(name: String, surface: String, specification: String) =
     tasks.register<GenerateTask>(name) {
-        generatorName.set("dart")
+        generatorName.set("dart-dio")
         inputSpec.set(contractRoot.file(specification).asFile.absolutePath)
         outputDir.set(openApiBuild.map { it.dir("$surface-client") })
         cleanupOutput.set(true)
@@ -73,6 +73,7 @@ fun registerClientGenerator(name: String, surface: String, specification: String
                 "enumUnknownDefaultCase" to "true",
                 "pubName" to if (surface == "publicv1") "api_client" else "admin_api_client",
                 "pubVersion" to "0.0.1",
+                "serializationLibrary" to "built_value",
             ),
         )
         globalProperties.set(

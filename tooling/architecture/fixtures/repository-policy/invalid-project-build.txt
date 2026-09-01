@@ -1,0 +1,7 @@
+plugins {
+    id("lemon.java")
+}
+
+dependencies {
+    implementation("example:forbidden:1.0.0")
+}

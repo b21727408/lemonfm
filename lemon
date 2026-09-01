@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
+source "$ROOT/tooling/tools.sh"
 
 GRADLE="$ROOT/gradlew"
 FLUTTER_VERSION="3.47.2"
@@ -39,14 +40,14 @@ verify_flutter() {
   fi
   local version
   version="$("$FLUTTER" --version --machine)"
-  if ! grep -Eq '"frameworkVersion"[[:space:]]*:[[:space:]]*"3\.47\.2"' <<<"$version"; then
+  grep -Eq '"frameworkVersion"[[:space:]]*:[[:space:]]*"3\.47\.2"' <<<"$version" || {
     echo "Expected Flutter $FLUTTER_VERSION; LEMON_FLUTTER_BIN resolved to $FLUTTER" >&2
     exit 69
-  fi
-  if ! grep -Eq '"dartSdkVersion"[[:space:]]*:[[:space:]]*"3\.13\.2"' <<<"$version"; then
+  }
+  grep -Eq '"dartSdkVersion"[[:space:]]*:[[:space:]]*"3\.13\.2"' <<<"$version" || {
     echo "Flutter $FLUTTER_VERSION must contain Dart 3.13.2" >&2
     exit 69
-  fi
+  }
 }
 
 flutter_pub_get() {
@@ -54,8 +55,15 @@ flutter_pub_get() {
   "$FLUTTER" pub get --enforce-lockfile
 }
 
+flutter_pub_refresh() {
+  verify_flutter
+  "$FLUTTER" pub get
+}
+
 dart_sources=(
   apps
+  packages/admin_api_client
+  packages/api_client
   packages/foundation
   packages/lemon_lints
   packages/lemon_ui
@@ -65,16 +73,93 @@ dart_sources=(
   packages/features
 )
 
+architecture() {
+  "$GRADLE" --quiet :tooling:architecture:run --args="$*"
+}
+
 flutter_fast() {
   architecture validate
   flutter_pub_get
   "$DART" format --output=none --set-exit-if-changed "${dart_sources[@]}"
   "$FLUTTER" analyze --fatal-infos --fatal-warnings
+  "$DART" run packages/lemon_lints/tool/rule_fixture_test.dart
 }
 
-flutter_test() {
+flutter_tests() {
   flutter_pub_get
   "$FLUTTER" test packages/lemon_ui/test
+  "$DART" run packages/lemon_lints/tool/rule_fixture_test.dart
+}
+
+contract_roundtrip() {
+  flutter_pub_get
+  "$DART" run packages/api_client/tool/contract_fixture_roundtrip.dart
+  "$DART" run packages/admin_api_client/tool/contract_fixture_roundtrip.dart
+}
+
+openapi_compatibility() {
+  local oasdiff base_ref specification status
+  oasdiff="$(resolve_pinned_tool oasdiff)"
+  set +e
+  "$oasdiff" breaking --fail-on ERR --color never \
+    contracts/fixtures/oasdiff/baseline.yaml contracts/fixtures/oasdiff/breaking.yaml >/dev/null
+  status=$?
+  set -e
+  if [[ "$status" -ne 1 ]]; then
+    echo "oasdiff permanent breaking-change fixture did not fail with exit 1 (got $status)" >&2
+    exit 70
+  fi
+  base_ref="${LEMON_API_BASE_REF:-origin/main}"
+  for specification in public-v1.yaml admin-v1.yaml; do
+    if git cat-file -e "$base_ref:contracts/http/$specification" 2>/dev/null; then
+      "$oasdiff" breaking --fail-on ERR --color never \
+        "$base_ref:contracts/http/$specification" "contracts/http/$specification"
+    else
+      echo "$specification: no authored contract at $base_ref; compatibility baseline begins after merge"
+    fi
+  done
+}
+
+gitleaks_check() {
+  local gitleaks fixture_dir status
+  gitleaks="$(resolve_pinned_tool gitleaks)"
+  fixture_dir="${LEMON_TOOL_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/lemon/tools}/gitleaks-self-test"
+  mkdir -p "$fixture_dir"
+  local suffix
+  suffix="$(printf '%s' 'lemon-gitleaks-detector-fixture' | sha256sum | cut -c1-36)"
+  printf 'token = "ghp_%s"\n' "$suffix" >"$fixture_dir/fixture.txt"
+  set +e
+  "$gitleaks" dir --no-banner --no-color "$fixture_dir/fixture.txt" >/dev/null 2>&1
+  status=$?
+  set -e
+  rm -f "$fixture_dir/fixture.txt"
+  if [[ "$status" -ne 1 ]]; then
+    echo "Gitleaks permanent detector fixture did not fail with exit 1 (got $status)" >&2
+    exit 70
+  fi
+  "$gitleaks" git --redact --no-banner --no-color .
+}
+
+dependency_integrity() {
+  flutter_pub_get
+  "$GRADLE" :backend:dependencies :tooling:architecture:dependencies
+  "$GRADLE" -p build-logic dependencies
+  git diff --exit-code -- '**/gradle.lockfile' pubspec.lock gradle/verification-metadata.xml
+}
+
+repository_security() {
+  architecture "check policy"
+  dependency_integrity
+  gitleaks_check
+}
+
+contracts_check() {
+  architecture validate
+  "$GRADLE" :backend:contractsCheck :backend:test --tests fm.lemon.contractfixture.ContractFixtureResponseTest
+  architecture "contract-manifest check"
+  contract_roundtrip
+  openapi_compatibility
+  architecture "migration-append-only ${LEMON_API_BASE_REF:-origin/main}"
 }
 
 build_smoke() {
@@ -101,90 +186,63 @@ build_smoke() {
   fi
 }
 
-architecture() {
-  "$GRADLE" --quiet :tooling:architecture:run --args="$*"
-}
-
 case "${1:-}" in
   generate)
     architecture generate
     "$GRADLE" :backend:generateJooq :backend:generateContractBindings
+    flutter_pub_refresh
+    (cd packages/api_client && "$DART" run build_runner build)
+    (cd packages/admin_api_client && "$DART" run build_runner build)
+    "$DART" format "${dart_sources[@]}"
     architecture "contract-manifest generate"
-    verify_flutter
-    "$DART" format \
-      packages/lemon_lints/lib/src/generated/module_policy.dart \
-      packages/lemon_ui/lib/src/generated/tokens.dart
     ;;
   check)
     scope="${3:-all}"
-    if [[ "${2:-}" != "--scope" ]]; then
-      scope="all"
-    fi
+    [[ "${2:-}" == "--scope" ]] || scope="all"
     case "$scope" in
       policy|generated)
         architecture "check $scope"
-        if [[ "$scope" == policy ]]; then
-          "$GRADLE" :tooling:architecture:spotlessCheck
-        fi
+        [[ "$scope" != policy ]] || "$GRADLE" :tooling:architecture:spotlessCheck
         ;;
       backend-fast)
         architecture validate
         "$GRADLE" :tooling:architecture:spotlessCheck :backend:check
         ;;
-      flutter-fast)
-        flutter_fast
-        ;;
+      flutter-fast) flutter_fast ;;
       postgres-integration)
         architecture validate
         "$GRADLE" :backend:postgresIntegrationTest
         ;;
-      contracts)
-        architecture validate
-        "$GRADLE" :backend:contractsCheck :backend:test --tests fm.lemon.contractfixture.ContractFixtureResponseTest
-        architecture "contract-manifest check"
-        architecture "openapi-breaking ${LEMON_API_BASE_REF:-origin/main}"
-        ;;
-      repository-security)
-        architecture "check policy"
-        flutter_pub_get
-        "$GRADLE" :backend:dependencies :tooling:architecture:dependencies --write-locks
-        "$GRADLE" -p build-logic dependencies --write-locks
-        git diff --exit-code -- '**/gradle.lockfile' pubspec.lock gradle/verification-metadata.xml
-        ;;
-      build-smoke)
-        build_smoke
-        ;;
+      contracts) contracts_check ;;
+      repository-security) repository_security ;;
+      build-smoke) build_smoke ;;
       all)
         architecture "check all"
         "$GRADLE" :tooling:architecture:spotlessCheck :backend:contractsCheck :backend:check :backend:postgresIntegrationTest
-        architecture "openapi-breaking ${LEMON_API_BASE_REF:-origin/main}"
+        repository_security
+        contracts_check
         flutter_fast
-        flutter_test
+        flutter_tests
         build_smoke
         ;;
-      *)
-        echo "unknown check scope: $scope" >&2
-        exit 64
-        ;;
+      *) echo "unknown check scope: $scope" >&2; exit 64 ;;
     esac
     ;;
   test)
     architecture validate
     "$GRADLE" test :backend:postgresIntegrationTest
-    flutter_test
+    flutter_tests
+    contract_roundtrip
     ;;
   fix)
     architecture generate
-    "$GRADLE" :backend:spotlessApply
+    "$GRADLE" :backend:spotlessApply :tooling:architecture:spotlessApply
     verify_flutter
     "$DART" format "${dart_sources[@]}"
     ;;
   dev)
     docker compose up -d postgres
-    "$GRADLE" :backend:bootRun
+    SPRING_FLYWAY_ENABLED=true "$GRADLE" :backend:bootRun
     ;;
-  *)
-    echo "usage: ./lemon {check|test|fix|generate|dev} [--scope <scope>]" >&2
-    exit 64
-    ;;
+  *) echo "usage: ./lemon {check|test|fix|generate|dev} [--scope <scope>]" >&2; exit 64 ;;
 esac
