@@ -261,11 +261,17 @@ final class GeneratedArtifactProducer {
       policy.path(layer).path(field).forEach(value -> values.add(value.asText()));
       values.sort(String::compareTo);
       output.append("  '").append(layer).append("': {");
-      for (int index = 0; index < values.size(); index++) {
-        if (index > 0) {
-          output.append(", ");
+      if (values.size() >= 5) {
+        output.append('\n');
+        values.forEach(value -> output.append("    '").append(value).append("',\n"));
+        output.append("  ");
+      } else {
+        for (int index = 0; index < values.size(); index++) {
+          if (index > 0) {
+            output.append(", ");
+          }
+          output.append('\'').append(values.get(index)).append('\'');
         }
-        output.append('\'').append(values.get(index)).append('\'');
       }
       output.append("},\n");
     }
