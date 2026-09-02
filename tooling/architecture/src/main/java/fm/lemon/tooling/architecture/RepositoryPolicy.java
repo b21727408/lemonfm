@@ -25,6 +25,11 @@ final class RepositoryPolicy {
       Pattern.compile("\"\"\"(.*?)\"\"\"|\"(?:\\\\.|[^\"\\\\])*\"", Pattern.DOTALL);
   private static final Pattern STRING_JOOQ_IDENTIFIER =
       Pattern.compile("\\bDSL\\s*\\.\\s*(?:table|field|name)\\s*\\(\\s*\"");
+  private static final Pattern QUOTED_VALUE = Pattern.compile("[\"']([^\"']+)[\"']");
+  private static final Pattern DYNAMIC_VERSION =
+      Pattern.compile("(?i)(?:latest\\.(?:release|integration)|[^:]*\\+|[^:]*snapshot[^:]*)");
+  private static final Pattern GRADLE_PROPERTY =
+      Pattern.compile("(?m)^\\s*([^#\\s][^=]*)=(.*?)\\s*$");
 
   private final Path root;
   private final Set<String> schemas;
@@ -62,6 +67,12 @@ final class RepositoryPolicy {
                     String buildViolation = projectBuildViolation(source);
                     if (buildViolation != null) {
                       violations.add(relative + ": " + buildViolation);
+                    }
+                  }
+                  if (isAuthoredGradleVersionSurface(relative)) {
+                    String dynamicVersion = dynamicVersionViolation(source);
+                    if (dynamicVersion != null) {
+                      violations.add(relative + ": " + dynamicVersion);
                     }
                   }
                   if (relative.startsWith("backend/src/main/java/") && relative.endsWith(".java")) {
@@ -135,9 +146,19 @@ final class RepositoryPolicy {
     expectViolation(
         appendOnlyViolation(Files.readString(fixtures.resolve("modified-migration.txt"))),
         "append-only migration");
+    String invalidVersions = Files.readString(fixtures.resolve("invalid-dynamic-version.txt"));
+    for (String declaration : invalidVersions.split("\\R")) {
+      if (!declaration.isBlank() && !declaration.startsWith("[")) {
+        expectViolation(
+            dynamicVersionViolation(declaration), "dynamic Gradle version " + declaration);
+      }
+    }
     if (projectBuildViolation(Files.readString(fixtures.resolve("valid-project-build.txt")))
         != null) {
       fail("Repository policy positive fixture was rejected");
+    }
+    if (dynamicVersionViolation(Files.readString(fixtures.resolve("valid-versions.txt"))) != null) {
+      fail("Repository policy valid Gradle versions fixture was rejected");
     }
   }
 
@@ -203,6 +224,36 @@ final class RepositoryPolicy {
     return null;
   }
 
+  private static String dynamicVersionViolation(String source) {
+    Matcher values = QUOTED_VALUE.matcher(source);
+    while (values.find()) {
+      String value = values.group(1).strip();
+      String candidate = value;
+      int finalColon = candidate.lastIndexOf(':');
+      if (finalColon >= 0) {
+        candidate = candidate.substring(finalColon + 1);
+      }
+      if (DYNAMIC_VERSION.matcher(candidate).matches()) {
+        return "dynamic Gradle version is forbidden: `" + value + "`";
+      }
+    }
+    Matcher properties = GRADLE_PROPERTY.matcher(source);
+    while (properties.find()) {
+      String key = properties.group(1).strip();
+      String value = properties.group(2).strip();
+      String lowerKey = key.toLowerCase();
+      String lowerValue = value.toLowerCase();
+      if ((lowerKey.contains("version") || lowerKey.equals("distributionurl"))
+          && (value.contains("+")
+              || lowerValue.contains("latest.release")
+              || lowerValue.contains("latest.integration")
+              || lowerValue.contains("snapshot"))) {
+        return "dynamic Gradle version is forbidden: `" + key + "=" + value + "`";
+      }
+    }
+    return null;
+  }
+
   private boolean isIgnored(Path path) {
     String relative = slash(root.relativize(path));
     return relative.startsWith(".git/")
@@ -218,8 +269,21 @@ final class RepositoryPolicy {
     String name = path.getFileName().toString();
     return isSourceFile(path)
         || name.equals("build.gradle.kts")
+        || name.equals("settings.gradle.kts")
+        || name.equals("libs.versions.toml")
+        || name.equals("gradle.properties")
+        || name.equals("gradle-wrapper.properties")
+        || name.endsWith(".gradle")
         || name.equals("pubspec.yaml")
         || name.equals("pubspec.yml");
+  }
+
+  private static boolean isAuthoredGradleVersionSurface(String relative) {
+    return relative.endsWith(".gradle.kts")
+        || relative.endsWith(".gradle")
+        || relative.endsWith("gradle.properties")
+        || relative.equals("gradle/libs.versions.toml")
+        || relative.endsWith("gradle-wrapper.properties");
   }
 
   private static boolean isProjectBuild(String relative) {

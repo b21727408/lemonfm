@@ -1,0 +1,7 @@
+[versions]
+plus = "1.+"
+release = "latest.release"
+integration = "latest.integration"
+snapshot = "2.0-SNAPSHOT"
+libraryVersion=3.+
+distributionUrl=https\://services.gradle.org/distributions/gradle-latest.release-bin.zip
