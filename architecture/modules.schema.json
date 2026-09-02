@@ -33,7 +33,7 @@
     "policies": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["graph", "cross_module", "persistence", "domain_layer", "layers", "transactions", "events"],
+      "required": ["graph", "cross_module", "persistence", "domain_layer", "layers", "flutter_layers", "transactions", "events"],
       "properties": {
         "graph": {
           "type": "object",
@@ -110,6 +110,26 @@
             "api_implemented_by": { "const": "application" }
           }
         },
+        "flutter_layers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["domain", "application", "data", "presentation", "appearance"],
+          "properties": {
+            "domain": { "$ref": "#/$defs/flutterLayer" },
+            "application": { "$ref": "#/$defs/flutterLayer" },
+            "data": { "$ref": "#/$defs/flutterLayer" },
+            "presentation": { "$ref": "#/$defs/flutterLayer" },
+            "appearance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["owner", "forbidden_feature_imports"],
+              "properties": {
+                "owner": { "const": "lemon_ui" },
+                "forbidden_feature_imports": { "$ref": "#/$defs/stringArray" }
+              }
+            }
+          }
+        },
         "transactions": {
           "type": "object",
           "additionalProperties": false,
@@ -174,6 +194,8 @@
         "domain_layer.forbidden_namespaces",
         "domain_layer.forbidden_calls",
         "layers.order",
+        "flutter_layers.imports",
+        "flutter_layers.appearance",
         "transactions.external_io_inside_transaction",
         "transactions.requires_new.application_code",
         "events.no_orphan",
@@ -189,6 +211,8 @@
         "domain_layer.forbidden_namespaces": { "$ref": "#/$defs/mechanisms" },
         "domain_layer.forbidden_calls": { "$ref": "#/$defs/mechanisms" },
         "layers.order": { "$ref": "#/$defs/mechanisms" },
+        "flutter_layers.imports": { "$ref": "#/$defs/mechanisms" },
+        "flutter_layers.appearance": { "$ref": "#/$defs/mechanisms" },
         "transactions.external_io_inside_transaction": { "$ref": "#/$defs/mechanisms" },
         "transactions.requires_new.application_code": { "$ref": "#/$defs/mechanisms" },
         "events.no_orphan": { "$ref": "#/$defs/mechanisms" },
@@ -213,6 +237,16 @@
           "review",
           "spring_modulith_typed_dependencies"
         ]
+      }
+    },
+    "flutterLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["may_import_own_layers", "may_import_workspace_packages", "may_import_external_packages"],
+      "properties": {
+        "may_import_own_layers": { "$ref": "#/$defs/stringArray" },
+        "may_import_workspace_packages": { "$ref": "#/$defs/stringArray" },
+        "may_import_external_packages": { "$ref": "#/$defs/stringArray" }
       }
     },
     "backendModule": {

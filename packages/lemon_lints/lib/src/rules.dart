@@ -12,6 +12,12 @@ String _path(RuleContext context) =>
 
 bool _isLayer(String path, String layer) => path.contains('/lib/src/$layer/');
 
+String? _layerName(String path) {
+  final match = RegExp(r'/lib/src/(domain|application|data|presentation)/')
+      .firstMatch(path);
+  return match?.group(1);
+}
+
 String? _featureName(String path) {
   final match = RegExp(r'/packages/features/([^/]+)/').firstMatch(path);
   return match?.group(1);
@@ -50,43 +56,91 @@ final class LemonLayerBoundaryRule extends _LemonRule {
     final path = _path(context);
     final feature = _featureName(path);
     if (feature == null) return;
+    final layer = _layerName(path);
+    if (layer == null) return;
     registry.addImportDirective(
       this,
-      _LayerImportVisitor(this, feature, isDomain: _isLayer(path, 'domain')),
+      _LayerImportVisitor(this, feature, layer, path),
     );
   }
 }
 
 final class _LayerImportVisitor extends SimpleAstVisitor<void> {
-  _LayerImportVisitor(this.rule, this.feature, {required this.isDomain});
+  _LayerImportVisitor(this.rule, this.feature, this.layer, this.sourcePath);
 
   final AnalysisRule rule;
   final String feature;
-  final bool isDomain;
+  final String layer;
+  final String sourcePath;
 
   @override
   void visitImportDirective(ImportDirective node) {
     final uri = node.uri.stringValue;
     if (uri == null) return;
     final importedPackage = _packageName(uri);
-    if (isDomain &&
-        (importedPackage == 'flutter' ||
-            importedPackage == 'flutter_riverpod' ||
-            importedPackage == 'riverpod')) {
-      rule.reportAtNode(
-        node,
-        arguments: ['domain code cannot import Flutter or Riverpod'],
-      );
-    }
     if (importedPackage != null &&
         importedPackage != feature &&
-        featurePackages.contains(importedPackage) &&
-        uri.startsWith('package:$importedPackage/src/')) {
+        featurePackages.contains(importedPackage)) {
       rule.reportAtNode(
         node,
-        arguments: [
-          '$feature cannot import another feature\'s private src/ API: $uri',
-        ],
+        arguments: ['$feature cannot import another feature package: $uri'],
+      );
+      return;
+    }
+
+    final ownTargetLayer = _ownTargetLayer(uri);
+    if (ownTargetLayer != null &&
+        !allowedOwnLayerImports[layer]!.contains(ownTargetLayer)) {
+      rule.reportAtNode(
+        node,
+        arguments: ['$layer cannot import the $ownTargetLayer layer: $uri'],
+      );
+      return;
+    }
+
+    if (importedPackage == null || importedPackage == feature) return;
+    if (workspacePackages.contains(importedPackage)) {
+      if (!allowedLayerWorkspacePackages[layer]!.contains(importedPackage) ||
+          !allowedPackageDependencies[feature]!.contains(importedPackage)) {
+        rule.reportAtNode(
+          node,
+          arguments: [
+            '$layer cannot import workspace package $importedPackage',
+          ],
+        );
+      }
+      return;
+    }
+    if (!allowedLayerExternalPackages[layer]!.contains(importedPackage)) {
+      rule.reportAtNode(
+        node,
+        arguments: ['$layer cannot import external package $importedPackage'],
+      );
+    }
+  }
+
+  String? _ownTargetLayer(String uri) {
+    if (uri.startsWith('package:$feature/')) {
+      return _layerName('/lib/${uri.substring('package:$feature/'.length)}');
+    }
+    if (uri.startsWith('package:') || uri.startsWith('dart:')) return null;
+    final resolved = Uri.file(sourcePath).resolve(uri).path;
+    return _layerName(resolved);
+  }
+}
+
+final class _FrameworkAppearanceImportVisitor extends SimpleAstVisitor<void> {
+  _FrameworkAppearanceImportVisitor(this.rule);
+
+  final AnalysisRule rule;
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    final uri = node.uri.stringValue;
+    if (uri != null && forbiddenFeatureVisualImports.contains(uri)) {
+      rule.reportAtNode(
+        node,
+        arguments: ['$uri visual components belong behind lemon_ui'],
       );
     }
   }
@@ -113,8 +167,15 @@ final class LemonDesignTokenBoundaryRule extends _LemonRule {
     RuleVisitorRegistry registry,
     RuleContext context,
   ) {
-    if (_path(context).contains('/packages/lemon_ui/')) return;
+    final path = _path(context);
+    if (path.contains('/packages/lemon_ui/')) return;
     registry.addInstanceCreationExpression(this, _DesignValueVisitor(this));
+    if (_featureName(path) != null) {
+      registry.addImportDirective(
+        this,
+        _FrameworkAppearanceImportVisitor(this),
+      );
+    }
   }
 }
 

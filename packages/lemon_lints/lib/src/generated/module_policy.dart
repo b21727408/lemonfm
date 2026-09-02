@@ -56,3 +56,46 @@ const Map<String, Set<String>> allowedPackageDependencies = {
   'telemetry': {'foundation'},
   'widgetbook': {'lemon_ui'},
 };
+
+const Map<String, Set<String>> allowedOwnLayerImports = {
+  'domain': {'domain'},
+  'application': {'application', 'domain'},
+  'data': {'application', 'data', 'domain'},
+  'presentation': {'application', 'domain', 'presentation'},
+};
+
+const Map<String, Set<String>> allowedLayerWorkspacePackages = {
+  'domain': {'foundation'},
+  'application': {'foundation'},
+  'data': {
+    'api_client',
+    'foundation',
+    'realtime_client',
+    'secure_store',
+    'telemetry',
+  },
+  'presentation': {'foundation', 'lemon_ui', 'telemetry'},
+};
+
+const Map<String, Set<String>> allowedLayerExternalPackages = {
+  'domain': {},
+  'application': {},
+  'data': {},
+  'presentation': {'flutter', 'flutter_riverpod', 'riverpod'},
+};
+
+const Set<String> workspacePackages = {
+  'admin_api_client',
+  'api_client',
+  'foundation',
+  'lemon_lints',
+  'lemon_ui',
+  'realtime_client',
+  'secure_store',
+  'telemetry',
+};
+
+const Set<String> forbiddenFeatureVisualImports = {
+  'package:flutter/cupertino.dart',
+  'package:flutter/material.dart',
+};

@@ -230,7 +230,46 @@ final class GeneratedArtifactProducer {
           }
           output.append("},\n");
         });
-    return output.append("};\n").toString();
+    output.append("};\n\n");
+    JsonNode layerPolicy = modules.path("policies").path("flutter_layers");
+    appendDartSetMap(output, "allowedOwnLayerImports", layerPolicy, "may_import_own_layers");
+    appendDartSetMap(
+        output, "allowedLayerWorkspacePackages", layerPolicy, "may_import_workspace_packages");
+    appendDartSetMap(
+        output, "allowedLayerExternalPackages", layerPolicy, "may_import_external_packages");
+    output.append("const Set<String> workspacePackages = {");
+    List<String> workspacePackages =
+        fieldNames(modules.path("flutter").path("packages")).stream().sorted().toList();
+    workspacePackages.forEach(name -> output.append("\n  '").append(name).append("',"));
+    output.append("\n};\n\nconst Set<String> forbiddenFeatureVisualImports = {");
+    List<String> visualImports = new ArrayList<>();
+    layerPolicy
+        .path("appearance")
+        .path("forbidden_feature_imports")
+        .forEach(value -> visualImports.add(value.asText()));
+    visualImports.stream()
+        .sorted()
+        .forEach(value -> output.append("\n  '").append(value).append("',"));
+    return output.append("\n};\n").toString();
+  }
+
+  private static void appendDartSetMap(
+      StringBuilder output, String constantName, JsonNode policy, String field) {
+    output.append("const Map<String, Set<String>> ").append(constantName).append(" = {\n");
+    for (String layer : List.of("domain", "application", "data", "presentation")) {
+      List<String> values = new ArrayList<>();
+      policy.path(layer).path(field).forEach(value -> values.add(value.asText()));
+      values.sort(String::compareTo);
+      output.append("  '").append(layer).append("': {");
+      for (int index = 0; index < values.size(); index++) {
+        if (index > 0) {
+          output.append(", ");
+        }
+        output.append('\'').append(values.get(index)).append('\'');
+      }
+      output.append("},\n");
+    }
+    output.append("};\n\n");
   }
 
   private static void collectFlutterDependencies(

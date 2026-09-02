@@ -445,6 +445,16 @@ data/           HTTP, cache, DTO mapping
 presentation/   Riverpod controllers, screens, widgets
 ```
 
+Layer direction is explicit. `domain` may use only its own domain code,
+foundation primitives and the Dart SDK. `application` may use its own domain
+and application contracts plus foundation; it does not import Flutter,
+Riverpod, data implementations, presentation, API clients or platform/vendor
+SDKs. `data` implements domain/application ports and may use the feature's
+declared technical packages. `presentation` may use domain/application,
+Riverpod and `lemon_ui`, but never imports `data` implementation details.
+`architecture/modules.yaml` declares the precise import sets consumed by
+`lemon_layer_boundary`.
+
 **No feature depends on another feature.** They still need to reach each other —
 discovery opens a profile, a profile opens the composer — and `apps/mobile`
 owns that: a feature exposes routes and emits navigation intents, and the shell

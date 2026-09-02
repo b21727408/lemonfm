@@ -56,6 +56,38 @@ plugins:
     ),
     FixtureCase('layer_positive', 'lib/src/domain/layer.dart', null),
     FixtureCase(
+      'layer_domain_technical_negative',
+      'lib/src/domain/technical.dart',
+      'lemon_layer_boundary',
+    ),
+    FixtureCase('layer_domain_positive', 'lib/src/domain/model.dart', null),
+    FixtureCase(
+      'layer_application_negative',
+      'lib/src/application/reversed.dart',
+      'lemon_layer_boundary',
+    ),
+    FixtureCase(
+      'layer_application_positive',
+      'lib/src/application/use_case.dart',
+      null,
+    ),
+    FixtureCase(
+      'layer_data_negative',
+      'lib/src/data/reversed.dart',
+      'lemon_layer_boundary',
+    ),
+    FixtureCase('layer_data_positive', 'lib/src/data/gateway.dart', null),
+    FixtureCase(
+      'layer_presentation_negative',
+      'lib/src/presentation/reversed.dart',
+      'lemon_layer_boundary',
+    ),
+    FixtureCase(
+      'layer_presentation_positive',
+      'lib/src/presentation/controller.dart',
+      null,
+    ),
+    FixtureCase(
       'raw_design_negative',
       'lib/src/presentation/raw_design.dart',
       'lemon_design_token_boundary',
@@ -64,6 +96,11 @@ plugins:
       'raw_design_positive',
       'lib/src/presentation/design.dart',
       null,
+    ),
+    FixtureCase(
+      'material_visual_negative',
+      'lib/src/presentation/material_visual.dart',
+      'lemon_design_token_boundary',
     ),
     FixtureCase(
       'widget_string_negative',

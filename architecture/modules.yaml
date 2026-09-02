@@ -64,6 +64,31 @@ policies:
     api_may_not_depend_on: [domain, application, infrastructure]
     api_implemented_by: application
 
+  flutter_layers:
+    # Workspace-package permission and layer permission are both required. A
+    # feature declaring api_client does not make it legal from presentation.
+    domain:
+      may_import_own_layers: [domain]
+      may_import_workspace_packages: [foundation]
+      may_import_external_packages: []
+    application:
+      may_import_own_layers: [domain, application]
+      may_import_workspace_packages: [foundation]
+      may_import_external_packages: []
+    data:
+      may_import_own_layers: [domain, application, data]
+      may_import_workspace_packages: [foundation, api_client, telemetry, realtime_client, secure_store]
+      may_import_external_packages: []
+    presentation:
+      may_import_own_layers: [domain, application, presentation]
+      may_import_workspace_packages: [foundation, lemon_ui, telemetry]
+      may_import_external_packages: [flutter, flutter_riverpod, riverpod]
+    appearance:
+      owner: lemon_ui
+      forbidden_feature_imports:
+        - package:flutter/material.dart
+        - package:flutter/cupertino.dart
+
   transactions:
     owner: outermost_application_operation
     synchronous_module_calls: join_caller_transaction
@@ -100,6 +125,8 @@ enforcement:
   domain_layer.forbidden_namespaces: [archunit, lemon_lints]
   domain_layer.forbidden_calls: [lemon_lints, forbidden_apis]
   layers.order: [archunit]
+  flutter_layers.imports: [lemon_lints]
+  flutter_layers.appearance: [lemon_lints]
   transactions.external_io_inside_transaction: [archunit_external_io_marker]
   transactions.requires_new.application_code: [archunit]
   events.no_orphan: [generator_check]
@@ -197,11 +224,11 @@ backend:
       identity: [AccountDeleted]
     publishes: [InboundRequestStateChanged, MessageSent]
     notes: >
-      Calls commerce because it is the only module that can compose the
-      effective ceiling. Safety must not see who paid, so safety returns a
-      safety cap and commerce returns a plan allowance, and messaging takes the
-      minimum (docs/06 §Quotas). Neither module alone can compute it, and that
-      is deliberate.
+      Calls commerce for the plan allowance. Safety must not see who paid, so
+      safety supplies safety restrictions, commerce supplies the plan
+      allowance, and messaging composes the effective ceiling by taking the
+      minimum (docs/06 §Quotas). Neither supplying module alone can compute it,
+      and that is deliberate.
 
       Calls profile and quiz to resolve an anchor. A client sends a reference;
       messaging verifies it exists and belongs to the receiver, then stores a

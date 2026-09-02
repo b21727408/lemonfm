@@ -151,6 +151,7 @@ final class ArchitectureValidator {
     JsonNode flutter = modules.path("flutter");
     Set<String> packages = fieldNames(flutter.path("packages"));
     Set<String> features = fieldNames(flutter.path("features"));
+    validateFlutterLayerPolicy(packages);
     flutter
         .path("packages")
         .fields()
@@ -185,6 +186,28 @@ final class ArchitectureValidator {
                     Set.of("all_features")));
     if (Files.isRegularFile(root.resolve("pubspec.yaml"))) {
       validateFlutterWorkspace(flutter, features);
+    }
+  }
+
+  private void validateFlutterLayerPolicy(Set<String> packages) {
+    Set<String> layers = Set.of("domain", "application", "data", "presentation");
+    JsonNode policy = modules.path("policies").path("flutter_layers");
+    for (String layer : layers) {
+      JsonNode definition = policy.path(layer);
+      for (String target : textValues(definition.path("may_import_own_layers"))) {
+        if (!layers.contains(target)) {
+          fail("Flutter layer " + layer + " allows unknown own layer " + target);
+        }
+      }
+      for (String target : textValues(definition.path("may_import_workspace_packages"))) {
+        if (!packages.contains(target)) {
+          fail("Flutter layer " + layer + " allows unknown workspace package " + target);
+        }
+      }
+    }
+    String appearanceOwner = policy.path("appearance").path("owner").asText();
+    if (!packages.contains(appearanceOwner)) {
+      fail("Flutter appearance owner is not a declared workspace package: " + appearanceOwner);
     }
   }
 

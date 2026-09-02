@@ -101,9 +101,8 @@ Spring build: formatting, static analysis, null checking, architecture tests,
 module verification, jOOQ generation, contract generation, drift detection,
 Testcontainers suites, migration suites, property tests, mutation runs and
 security tasks all have to compose, and expressing that in Maven lifecycle
-phases and executions becomes verbose and cross-wired. This decision is written
-down as an architecture decision record, including why not Maven, so that in six
-months nobody arrives proposing a migration to something simpler.
+phases and executions becomes verbose and cross-wired. The decision and the
+reason not to use Maven are recorded here, where build-quality policy is owned.
 
 Gradle's cost is that build scripts are code, and code is a surface an AI can be
 creative on. That cost is removed by locking the surface rather than by
@@ -134,8 +133,9 @@ Four rules, each enforced:
 2. **Repositories are declared once, in settings.** A project cannot add one.
 3. **No dynamic versions.** No `+`, no `latest.release`, no snapshots. Builds
    are reproducible or they are not builds.
-4. **Build logic is owned separately.** `build-logic/`, `settings.gradle.kts`
-   and `gradle/` sit behind code ownership, and **a feature task may never
+4. **Build logic is reviewed separately.** In the single-founder repository,
+   the protected-PR workflow makes changes to `build-logic/`,
+   `settings.gradle.kts` and `gradle/` explicit; **a feature task may never
    change build logic, dependency policy or a quality gate.** A task that needs
    to change build infrastructure is a build-infrastructure task, and says so.
 
@@ -204,8 +204,8 @@ the violation in a diff.
 cannot express. Start with five, because twenty lints written up front is its
 own project:
 
-- Flutter or Riverpod imported inside `domain/`
-- a raw colour, text style, radius, spacing or duration outside `lemon_ui`
+- a feature layer importing a forbidden own layer, workspace package or SDK
+- a raw design value or framework visual component outside `lemon_ui`
 - a user-facing string literal in a widget
 - a direct analytics or vendor SDK call from a feature
 - `DateTime.now()`, `Random()` or `Platform.*` in `domain/` or `application/`
@@ -482,5 +482,5 @@ a test rather than by being deleted.
 | Browse-only cannot send | `02`, `06` | integration test |
 | No visible quota counter | `06` | contract test: ceilings absent from responses |
 | A cooldown never fakes a successful send | `06` | integration test on the availability gate |
-| A feature slice never alters build logic | `08` | code ownership plus a path check in CI |
+| A feature slice never alters build logic | `08` | protected-PR review plus a path check in CI |
 | `AGENTS.md` matches its sources | `08` | regenerate and diff |
