@@ -1,6 +1,8 @@
 package fm.lemon.architecture;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.tngtech.archunit.core.domain.Dependency;
@@ -15,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -39,7 +42,43 @@ final class BackendArchitectureTest {
             .importClasses(
                 fm.lemon.identity.api.ForeignIdentityApiFixture.class,
                 fm.lemon.profile.api.ProfileApiDependsOnIdentityFixture.class);
-    assertThrows(AssertionError.class, () -> assertModuleBoundaries(fixture));
+    AssertionError violation =
+        assertThrows(AssertionError.class, () -> assertModuleBoundaries(fixture));
+    assertTrue(
+        Objects.requireNonNull(violation.getMessage())
+            .contains("api package must be self-standing"));
+  }
+
+  @Test
+  void apiPurityRuleRejectsAFrameworkTypeFixture() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(fm.lemon.profile.api.ProfileApiExposesSpringFixture.class);
+    AssertionError violation =
+        assertThrows(AssertionError.class, () -> assertModuleBoundaries(fixture));
+    assertTrue(
+        Objects.requireNonNull(violation.getMessage())
+            .contains("org.springframework.http.ResponseEntity"));
+  }
+
+  @Test
+  void apiPurityRuleAllowsDeclaredStructuralAnnotations() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(fm.lemon.profile.api.ProfileApiWithStructuralAnnotationsFixture.class);
+    assertDoesNotThrow(() -> assertModuleBoundaries(fixture));
+  }
+
+  @Test
+  void structuralAnnotationsCannotBecomeApiPayloadTypes() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(fm.lemon.profile.api.ProfileApiExposesStructuralAnnotationFixture.class);
+    AssertionError violation =
+        assertThrows(AssertionError.class, () -> assertModuleBoundaries(fixture));
+    assertTrue(
+        Objects.requireNonNull(violation.getMessage())
+            .contains("may appear only as annotation metadata"));
   }
 
   private static void assertModuleBoundaries(JavaClasses classes) {
@@ -56,15 +95,17 @@ final class BackendArchitectureTest {
         String targetLayer =
             targetModule == null ? null : layerOf(target.getPackageName(), targetModule);
 
+        if (POLICY.crossModuleVisibleLayer().equals(sourceLayer)) {
+          assertApiDependency(source, sourceModule, targetName, targetModule, targetLayer);
+        }
         if ("domain".equals(sourceLayer)) {
           assertDomainDependency(source, targetName, targetModule, targetLayer);
         }
         if (sourceModule.equals(targetModule)) {
           assertLayerDirection(source, sourceLayer, targetName, targetLayer);
         } else if (targetModule != null) {
-          assertCrossModuleApiOnly(source, sourceLayer, targetName, targetLayer);
+          assertCrossModuleApiOnly(source, targetName, targetLayer);
         }
-        assertApiDoesNotUseGeneratedPersistence(source, sourceLayer, targetName);
         assertSchemaOwnership(source, sourceModule, targetName);
       }
     }
@@ -129,16 +170,21 @@ final class BackendArchitectureTest {
       String targetName,
       @Nullable String targetModule,
       @Nullable String targetLayer) {
-    if (targetName.startsWith("org.springframework")
-        || targetName.startsWith("org.jooq")
-        || targetName.startsWith("com.fasterxml.jackson")
-        || targetName.startsWith("jakarta.persistence")
-        || targetName.startsWith("jakarta.servlet")) {
-      fail(source.getName() + " domain dependency is forbidden: " + targetName);
+    for (String namespace : POLICY.domainForbiddenNamespaces()) {
+      if (targetName.startsWith(namespace)) {
+        fail(source.getName() + " domain dependency is forbidden: " + targetName);
+      }
     }
     String sourceModule = moduleOf(source.getPackageName());
+    if (targetModule != null && !targetModule.equals(sourceModule)) {
+      if (!POLICY.domainMayDependOnOtherModules()) {
+        fail(source.getName() + " domain dependency is forbidden: " + targetName);
+      }
+      return;
+    }
     if (targetModule != null
-        && (!targetModule.equals(sourceModule) || !"domain".equals(targetLayer))) {
+        && !"domain".equals(targetLayer)
+        && !POLICY.domainDependencies().contains(targetLayer)) {
       fail(source.getName() + " domain dependency is forbidden: " + targetName);
     }
   }
@@ -151,40 +197,105 @@ final class BackendArchitectureTest {
     if (sourceLayer == null || targetLayer == null || sourceLayer.equals(targetLayer)) {
       return;
     }
-    boolean allowed =
-        switch (sourceLayer) {
-          case "infrastructure" -> Set.of("application", "domain", "api").contains(targetLayer);
-          case "application" -> Set.of("domain", "api").contains(targetLayer);
-          case "domain" -> targetLayer.equals("domain");
-          case "api" -> targetLayer.equals("api");
-          default -> false;
-        };
+    if (POLICY.crossModuleVisibleLayer().equals(sourceLayer)) {
+      return;
+    }
+    var order = POLICY.layerOrder();
+    int sourceIndex = order.indexOf(sourceLayer);
+    boolean allowed;
+    if (POLICY.crossModuleVisibleLayer().equals(targetLayer)) {
+      int implementationIndex = order.indexOf(POLICY.apiImplementedBy());
+      allowed = sourceIndex >= 0 && sourceIndex <= implementationIndex;
+    } else {
+      int targetIndex = order.indexOf(targetLayer);
+      allowed = sourceIndex >= 0 && targetIndex > sourceIndex;
+    }
     if (!allowed) {
       fail(source.getName() + " has reversed layer dependency on " + targetName);
     }
   }
 
   private static void assertCrossModuleApiOnly(
+      JavaClass source, String targetName, @Nullable String targetLayer) {
+    if (!POLICY.crossModuleVisibleLayer().equals(targetLayer)) {
+      fail(source.getName() + " reaches another module's internals: " + targetName);
+    }
+  }
+
+  private static void assertApiDependency(
       JavaClass source,
-      @Nullable String sourceLayer,
+      String sourceModule,
       String targetName,
+      @Nullable String targetModule,
       @Nullable String targetLayer) {
-    if ("api".equals(sourceLayer)) {
+    if (targetModule != null && !sourceModule.equals(targetModule)) {
       fail(
           source.getName()
               + " api package must be self-standing; foreign dependency: "
               + targetName);
     }
-    if (!"api".equals(targetLayer)) {
-      fail(source.getName() + " reaches another module's internals: " + targetName);
+    if (POLICY.apiAnnotationOnlyTypes().contains(targetName)) {
+      assertAnnotationTypeIsMetadataOnly(source, targetName);
+      return;
+    }
+    String category = apiTypeCategory(sourceModule, targetName, targetModule, targetLayer);
+    if (category != null
+        && POLICY.apiMayDependOn().contains(category)
+        && POLICY.apiMayExpose().contains(category)) {
+      return;
+    }
+    String detail =
+        category != null
+                && (POLICY.apiMayNotDependOn().contains(category)
+                    || POLICY.apiMayNotExpose().contains(category))
+            ? "forbidden category " + category
+            : "unapproved type category";
+    fail(source.getName() + " api dependency is forbidden (" + detail + "): " + targetName);
+  }
+
+  private static void assertAnnotationTypeIsMetadataOnly(JavaClass source, String annotationName) {
+    Set<JavaClass> signatureTypes = new HashSet<>();
+    source
+        .getTypeParameters()
+        .forEach(type -> signatureTypes.addAll(type.getAllInvolvedRawTypes()));
+    source.getSuperclass().ifPresent(type -> signatureTypes.addAll(type.getAllInvolvedRawTypes()));
+    source.getInterfaces().forEach(type -> signatureTypes.addAll(type.getAllInvolvedRawTypes()));
+    source.getMembers().forEach(member -> signatureTypes.addAll(member.getAllInvolvedRawTypes()));
+    boolean usedOutsideMetadata =
+        signatureTypes.stream().anyMatch(type -> type.getName().equals(annotationName))
+            || source.getReferencedClassObjects().stream()
+                .anyMatch(reference -> reference.getValue().getName().equals(annotationName))
+            || source.getInstanceofChecks().stream()
+                .anyMatch(check -> check.getRawType().getName().equals(annotationName))
+            || source.getAccessesFromSelf().stream()
+                .anyMatch(access -> access.getTargetOwner().getName().equals(annotationName));
+    if (usedOutsideMetadata) {
+      fail(
+          source.getName()
+              + " structural annotation type may appear only as annotation metadata: "
+              + annotationName);
     }
   }
 
-  private static void assertApiDoesNotUseGeneratedPersistence(
-      JavaClass source, @Nullable String sourceLayer, String targetName) {
-    if ("api".equals(sourceLayer) && targetName.startsWith("fm.lemon.generated.jooq.")) {
-      fail(source.getName() + " api package leaks generated persistence type: " + targetName);
+  private static @Nullable String apiTypeCategory(
+      String sourceModule,
+      String targetName,
+      @Nullable String targetModule,
+      @Nullable String targetLayer) {
+    if (sourceModule.equals(targetModule) && POLICY.crossModuleVisibleLayer().equals(targetLayer)) {
+      return POLICY.ownApiCategory();
     }
+    if (sourceModule.equals(targetModule) && targetLayer != null) {
+      return targetLayer;
+    }
+    for (var category : POLICY.apiNamespaceCategories().entrySet()) {
+      for (String namespace : category.getValue()) {
+        if (targetName.startsWith(namespace)) {
+          return category.getKey();
+        }
+      }
+    }
+    return null;
   }
 
   private static void assertSchemaOwnership(

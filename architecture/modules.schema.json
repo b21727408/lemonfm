@@ -55,10 +55,26 @@
             "api_signatures": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["may_expose", "may_not_expose"],
+              "required": ["may_expose", "may_not_expose", "own_api_category", "namespace_categories", "annotation_only_types"],
               "properties": {
                 "may_expose": { "$ref": "#/$defs/stringArray" },
-                "may_not_expose": { "$ref": "#/$defs/stringArray" }
+                "may_not_expose": { "$ref": "#/$defs/stringArray" },
+                "own_api_category": { "type": "string", "minLength": 1 },
+                "namespace_categories": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "propertyNames": { "$ref": "#/$defs/name" },
+                  "additionalProperties": { "$ref": "#/$defs/stringArray" }
+                },
+                "annotation_only_types": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z_$][a-zA-Z0-9_$]*(\\.[a-zA-Z_$][a-zA-Z0-9_$]*)+$"
+                  }
+                }
               }
             }
           }

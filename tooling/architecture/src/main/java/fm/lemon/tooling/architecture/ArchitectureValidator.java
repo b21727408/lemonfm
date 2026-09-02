@@ -37,9 +37,45 @@ final class ArchitectureValidator {
 
   void validate() throws IOException {
     validateSchema();
+    validateBackendPolicy();
     validateBackendRelationships();
     validateFlutterRelationships();
     System.out.println("architecture/modules.yaml: schema and semantics valid");
+  }
+
+  private void validateBackendPolicy() {
+    JsonNode policies = modules.path("policies");
+    JsonNode signatures = policies.path("cross_module").path("api_signatures");
+    JsonNode layers = policies.path("layers");
+    Set<String> mayExpose = textValues(signatures.path("may_expose"));
+    Set<String> mayNotExpose = textValues(signatures.path("may_not_expose"));
+    Set<String> mayDependOn = textValues(layers.path("api_may_depend_on"));
+    Set<String> mayNotDependOn = textValues(layers.path("api_may_not_depend_on"));
+    if (!mayExpose.equals(mayDependOn)) {
+      fail("API dependency and exposure allow-categories must agree");
+    }
+    if (!mayNotExpose.equals(mayNotDependOn)) {
+      fail("API dependency and exposure deny-categories must agree");
+    }
+    Set<String> overlap = new HashSet<>(mayExpose);
+    overlap.retainAll(mayNotExpose);
+    if (!overlap.isEmpty()) {
+      fail("API type categories cannot be both allowed and denied: " + overlap);
+    }
+    String ownApiCategory = signatures.path("own_api_category").asText();
+    if (!mayExpose.contains(ownApiCategory)) {
+      fail("API own-type category is not allowed: " + ownApiCategory);
+    }
+    Set<String> classifiedCategories =
+        new HashSet<>(fieldNames(signatures.path("namespace_categories")));
+    classifiedCategories.add(ownApiCategory);
+    classifiedCategories.addAll(textValues(layers.path("order")));
+    Set<String> unclassified = new HashSet<>(mayExpose);
+    unclassified.addAll(mayNotExpose);
+    unclassified.removeAll(classifiedCategories);
+    if (!unclassified.isEmpty()) {
+      fail("API type categories have no classifier: " + unclassified);
+    }
   }
 
   private void validateSchema() throws IOException {

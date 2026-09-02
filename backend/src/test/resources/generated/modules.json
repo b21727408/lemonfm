@@ -11,7 +11,14 @@
       "visibility" : "api_only",
       "api_signatures" : {
         "may_expose" : [ "api_types", "jdk_types", "foundation_types" ],
-        "may_not_expose" : [ "domain", "application", "infrastructure", "jooq_generated" ]
+        "may_not_expose" : [ "domain", "application", "infrastructure", "jooq_generated" ],
+        "own_api_category" : "api_types",
+        "namespace_categories" : {
+          "jdk_types" : [ "java." ],
+          "foundation_types" : [ "fm.lemon.foundation." ],
+          "jooq_generated" : [ "fm.lemon.generated.jooq." ]
+        },
+        "annotation_only_types" : [ "fm.lemon.architecture.ExternalIo", "org.jspecify.annotations.NonNull", "org.jspecify.annotations.Nullable", "org.jspecify.annotations.NullMarked", "org.jspecify.annotations.NullUnmarked", "org.springframework.modulith.NamedInterface" ]
       }
     },
     "persistence" : {
@@ -32,8 +39,8 @@
     "layers" : {
       "order" : [ "infrastructure", "application", "domain" ],
       "domain_depends_on" : [ ],
-      "api_may_depend_on" : [ "jdk", "foundation", "own_api_types" ],
-      "api_may_not_depend_on" : [ "domain", "application", "infrastructure" ],
+      "api_may_depend_on" : [ "api_types", "jdk_types", "foundation_types" ],
+      "api_may_not_depend_on" : [ "domain", "application", "infrastructure", "jooq_generated" ],
       "api_implemented_by" : "application"
     },
     "flutter_layers" : {

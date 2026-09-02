@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -46,6 +47,73 @@ final class ModulePolicy {
     return values("module." + source + ".calls");
   }
 
+  String crossModuleVisibleLayer() {
+    String visibility = required("policy.crossModule.visibility");
+    String suffix = "_only";
+    if (!visibility.endsWith(suffix)) {
+      throw new IllegalStateException("Unsupported cross-module visibility policy: " + visibility);
+    }
+    return visibility.substring(0, visibility.length() - suffix.length());
+  }
+
+  boolean domainMayDependOnOtherModules() {
+    return Boolean.parseBoolean(required("policy.domain.mayDependOnOtherModules"));
+  }
+
+  Set<String> domainForbiddenNamespaces() {
+    return values("policy.domain.forbiddenNamespaces");
+  }
+
+  Set<String> domainForbiddenCalls() {
+    return values("policy.domain.forbiddenCalls");
+  }
+
+  List<String> layerOrder() {
+    return List.copyOf(values("policy.layers.order"));
+  }
+
+  Set<String> domainDependencies() {
+    return values("policy.layers.domainDependsOn");
+  }
+
+  Set<String> apiMayDependOn() {
+    return values("policy.layers.apiMayDependOn");
+  }
+
+  Set<String> apiMayNotDependOn() {
+    return values("policy.layers.apiMayNotDependOn");
+  }
+
+  String apiImplementedBy() {
+    return required("policy.layers.apiImplementedBy");
+  }
+
+  Set<String> apiMayExpose() {
+    return values("policy.apiSignatures.mayExpose");
+  }
+
+  Set<String> apiMayNotExpose() {
+    return values("policy.apiSignatures.mayNotExpose");
+  }
+
+  String ownApiCategory() {
+    return required("policy.apiSignatures.ownApiCategory");
+  }
+
+  Set<String> apiAnnotationOnlyTypes() {
+    return values("policy.apiSignatures.annotationOnlyTypes");
+  }
+
+  Map<String, Set<String>> apiNamespaceCategories() {
+    String prefix = "policy.apiSignatures.namespace.";
+    Map<String, Set<String>> categories = new LinkedHashMap<>();
+    properties.stringPropertyNames().stream()
+        .filter(name -> name.startsWith(prefix))
+        .sorted()
+        .forEach(name -> categories.put(name.substring(prefix.length()), values(name)));
+    return categories;
+  }
+
   Set<String> subscriptions(String subscriber, String publisher) {
     return values("module." + subscriber + ".subscribes." + publisher);
   }
@@ -64,5 +132,13 @@ final class ModulePolicy {
       return Set.of();
     }
     return new LinkedHashSet<>(Arrays.asList(value.split(",")));
+  }
+
+  private String required(String key) {
+    String value = properties.getProperty(key);
+    if (value == null || value.isBlank()) {
+      throw new IllegalStateException("Generated backend policy is missing " + key);
+    }
+    return value;
   }
 }
