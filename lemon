@@ -81,7 +81,7 @@ flutter_fast() {
   architecture validate
   flutter_pub_get
   "$DART" format --output=none --set-exit-if-changed "${dart_sources[@]}"
-  "$FLUTTER" analyze --fatal-infos --fatal-warnings
+  "$DART" analyze --fatal-infos --fatal-warnings
   "$DART" run packages/lemon_lints/tool/rule_fixture_test.dart
 }
 
