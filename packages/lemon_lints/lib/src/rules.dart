@@ -169,13 +169,9 @@ final class LemonDesignTokenBoundaryRule extends _LemonRule {
   ) {
     final path = _path(context);
     if (path.contains('/packages/lemon_ui/')) return;
-    registry.addInstanceCreationExpression(this, _DesignValueVisitor(this));
-    if (_featureName(path) != null) {
-      registry.addImportDirective(
-        this,
-        _FrameworkAppearanceImportVisitor(this),
-      );
-    }
+    registry
+      ..addInstanceCreationExpression(this, _DesignValueVisitor(this))
+      ..addImportDirective(this, _FrameworkAppearanceImportVisitor(this));
   }
 }
 
