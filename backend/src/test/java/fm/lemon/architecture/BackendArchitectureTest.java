@@ -29,7 +29,21 @@ final class BackendArchitectureTest {
 
   @Test
   void domainAndLayerBoundariesHold() {
-    for (JavaClass source : CLASSES) {
+    assertModuleBoundaries(CLASSES);
+  }
+
+  @Test
+  void apiSelfStandingRuleRejectsAForeignApiFixture() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(
+                fm.lemon.identity.api.ForeignIdentityApiFixture.class,
+                fm.lemon.profile.api.ProfileApiDependsOnIdentityFixture.class);
+    assertThrows(AssertionError.class, () -> assertModuleBoundaries(fixture));
+  }
+
+  private static void assertModuleBoundaries(JavaClasses classes) {
+    for (JavaClass source : classes) {
       String sourceModule = moduleOf(source.getPackageName());
       if (sourceModule == null) {
         continue;
@@ -48,8 +62,9 @@ final class BackendArchitectureTest {
         if (sourceModule.equals(targetModule)) {
           assertLayerDirection(source, sourceLayer, targetName, targetLayer);
         } else if (targetModule != null) {
-          assertCrossModuleApiOnly(source, targetName, targetLayer);
+          assertCrossModuleApiOnly(source, sourceLayer, targetName, targetLayer);
         }
+        assertApiDoesNotUseGeneratedPersistence(source, sourceLayer, targetName);
         assertSchemaOwnership(source, sourceModule, targetName);
       }
     }
@@ -150,9 +165,25 @@ final class BackendArchitectureTest {
   }
 
   private static void assertCrossModuleApiOnly(
-      JavaClass source, String targetName, @Nullable String targetLayer) {
+      JavaClass source,
+      @Nullable String sourceLayer,
+      String targetName,
+      @Nullable String targetLayer) {
+    if ("api".equals(sourceLayer)) {
+      fail(
+          source.getName()
+              + " api package must be self-standing; foreign dependency: "
+              + targetName);
+    }
     if (!"api".equals(targetLayer)) {
       fail(source.getName() + " reaches another module's internals: " + targetName);
+    }
+  }
+
+  private static void assertApiDoesNotUseGeneratedPersistence(
+      JavaClass source, @Nullable String sourceLayer, String targetName) {
+    if ("api".equals(sourceLayer) && targetName.startsWith("fm.lemon.generated.jooq.")) {
+      fail(source.getName() + " api package leaks generated persistence type: " + targetName);
     }
   }
 
