@@ -10,8 +10,6 @@ import 'generated/module_policy.dart';
 String _path(RuleContext context) =>
     context.definingUnit.file.path.replaceAll('\\', '/');
 
-bool _isLayer(String path, String layer) => path.contains('/lib/src/$layer/');
-
 String? _layerName(String path) {
   final match = RegExp(r'/lib/src/(domain|application|data|presentation)/')
       .firstMatch(path);
@@ -77,6 +75,14 @@ final class _LayerImportVisitor extends SimpleAstVisitor<void> {
   void visitImportDirective(ImportDirective node) {
     final uri = node.uri.stringValue;
     if (uri == null) return;
+    if (directIoDartForbiddenImports.contains(uri) &&
+        !directIoDartOwnerLayers.contains(layer)) {
+      rule.reportAtNode(
+        node,
+        arguments: ['$uri direct platform/network I/O belongs in data'],
+      );
+      return;
+    }
     final importedPackage = _packageName(uri);
     if (importedPackage != null &&
         importedPackage != feature &&
@@ -336,7 +342,8 @@ final class LemonDeterminismBoundaryRule extends _LemonRule {
     RuleContext context,
   ) {
     final path = _path(context);
-    if (!_isLayer(path, 'domain') && !_isLayer(path, 'application')) return;
+    final layer = _layerName(path);
+    if (layer == null || !ambientDartLayers.contains(layer)) return;
     final visitor = _DeterminismVisitor(this);
     registry
       ..addInstanceCreationExpression(this, visitor)
@@ -353,26 +360,32 @@ final class _DeterminismVisitor extends SimpleAstVisitor<void> {
   @override
   void visitInstanceCreationExpression(InstanceCreationExpression node) {
     final constructor = node.constructorName;
-    if (constructor.type.name.lexeme == 'Random') {
-      rule.reportAtNode(node, arguments: ['Random()']);
-    } else if (constructor.type.name.lexeme == 'DateTime' &&
-        constructor.name?.name == 'now') {
-      rule.reportAtNode(node, arguments: ['DateTime.now()']);
+    final type = constructor.type.name.lexeme;
+    final name = constructor.name?.name;
+    final identifier = name == null ? type : '$type.$name';
+    if (forbiddenAmbientDartIdentifiers.contains(type) ||
+        forbiddenAmbientDartIdentifiers.contains(identifier)) {
+      rule.reportAtNode(node, arguments: ['$identifier()']);
     }
   }
 
   @override
   void visitMethodInvocation(MethodInvocation node) {
-    if (node.target?.toSource() == 'DateTime' &&
-        node.methodName.name == 'now') {
-      rule.reportAtNode(node, arguments: ['DateTime.now()']);
+    final target = node.target?.toSource();
+    if (target == null) return;
+    final identifier = '$target.${node.methodName.name}';
+    if (forbiddenAmbientDartIdentifiers.contains(identifier)) {
+      rule.reportAtNode(node, arguments: ['$identifier()']);
     }
   }
 
   @override
   void visitPrefixedIdentifier(PrefixedIdentifier node) {
-    if (node.prefix.name == 'Platform') {
-      rule.reportAtNode(node, arguments: ['Platform.${node.identifier.name}']);
+    final prefix = node.prefix.name;
+    final identifier = '$prefix.${node.identifier.name}';
+    if (forbiddenAmbientDartIdentifiers.contains(prefix) ||
+        forbiddenAmbientDartIdentifiers.contains(identifier)) {
+      rule.reportAtNode(node, arguments: [identifier]);
     }
   }
 }

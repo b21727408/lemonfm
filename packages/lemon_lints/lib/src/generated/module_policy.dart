@@ -84,6 +84,18 @@ const Map<String, Set<String>> allowedLayerExternalPackages = {
   'presentation': {'flutter', 'flutter_riverpod', 'riverpod'},
 };
 
+const Set<String> ambientDartLayers = {'application', 'domain'};
+
+const Set<String> forbiddenAmbientDartIdentifiers = {
+  'DateTime.now',
+  'Platform',
+  'Random',
+};
+
+const Set<String> directIoDartOwnerLayers = {'data'};
+
+const Set<String> directIoDartForbiddenImports = {'dart:io'};
+
 const Set<String> workspacePackages = {
   'admin_api_client',
   'api_client',

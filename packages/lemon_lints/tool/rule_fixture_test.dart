@@ -62,6 +62,11 @@ plugins:
     ),
     FixtureCase('layer_domain_positive', 'lib/src/domain/model.dart', null),
     FixtureCase(
+      'layer_domain_dart_io_negative',
+      'lib/src/domain/http_client.dart',
+      'lemon_layer_boundary',
+    ),
+    FixtureCase(
       'layer_application_negative',
       'lib/src/application/reversed.dart',
       'lemon_layer_boundary',
@@ -72,11 +77,21 @@ plugins:
       null,
     ),
     FixtureCase(
+      'layer_application_dart_io_negative',
+      'lib/src/application/http_client.dart',
+      'lemon_layer_boundary',
+    ),
+    FixtureCase(
       'layer_data_negative',
       'lib/src/data/reversed.dart',
       'lemon_layer_boundary',
     ),
     FixtureCase('layer_data_positive', 'lib/src/data/gateway.dart', null),
+    FixtureCase(
+      'layer_data_dart_io_positive',
+      'lib/src/data/http_client.dart',
+      null,
+    ),
     FixtureCase(
       'layer_presentation_negative',
       'lib/src/presentation/reversed.dart',

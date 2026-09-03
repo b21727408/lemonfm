@@ -64,8 +64,12 @@ final class ModulePolicy {
     return values("policy.domain.forbiddenNamespaces");
   }
 
-  Set<String> domainForbiddenCalls() {
-    return values("policy.domain.forbiddenCalls");
+  Set<String> directIoJavaOwnerLayers() {
+    return values("policy.directIo.java.ownerLayers");
+  }
+
+  Set<String> directIoJavaForbiddenNamespaces() {
+    return values("policy.directIo.java.forbiddenNamespaces");
   }
 
   List<String> layerOrder() {

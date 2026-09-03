@@ -30,10 +30,16 @@
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
     "policies": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["graph", "cross_module", "persistence", "domain_layer", "layers", "flutter_layers", "transactions", "events"],
+      "required": ["graph", "cross_module", "persistence", "domain_layer", "ambient_calls", "direct_io", "layers", "flutter_layers", "transactions", "events"],
       "properties": {
         "graph": {
           "type": "object",
@@ -91,7 +97,7 @@
         "domain_layer": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["may_depend_on_other_modules", "forbidden_namespaces", "forbidden_calls"],
+          "required": ["may_depend_on_other_modules", "forbidden_namespaces"],
           "properties": {
             "may_depend_on_other_modules": { "const": false },
             "forbidden_namespaces": {
@@ -102,14 +108,55 @@
                 "java": { "$ref": "#/$defs/stringArray" },
                 "dart": { "$ref": "#/$defs/stringArray" }
               }
-            },
-            "forbidden_calls": {
+            }
+          }
+        },
+        "ambient_calls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["java", "dart"],
+          "properties": {
+            "java": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["java", "dart"],
+              "required": ["scope", "forbidden_api_signatures"],
               "properties": {
-                "java": { "$ref": "#/$defs/stringArray" },
-                "dart": { "$ref": "#/$defs/stringArray" }
+                "scope": { "const": "repository_wide" },
+                "forbidden_api_signatures": { "$ref": "#/$defs/nonEmptyStringArray" }
+              }
+            },
+            "dart": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["layers", "forbidden_identifiers"],
+              "properties": {
+                "layers": { "$ref": "#/$defs/nonEmptyStringArray" },
+                "forbidden_identifiers": { "$ref": "#/$defs/nonEmptyStringArray" }
+              }
+            }
+          }
+        },
+        "direct_io": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["java", "dart"],
+          "properties": {
+            "java": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["owner_layers", "forbidden_namespaces"],
+              "properties": {
+                "owner_layers": { "$ref": "#/$defs/nonEmptyStringArray" },
+                "forbidden_namespaces": { "$ref": "#/$defs/nonEmptyStringArray" }
+              }
+            },
+            "dart": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["owner_layers", "forbidden_imports"],
+              "properties": {
+                "owner_layers": { "$ref": "#/$defs/nonEmptyStringArray" },
+                "forbidden_imports": { "$ref": "#/$defs/nonEmptyStringArray" }
               }
             }
           }
@@ -208,7 +255,8 @@
         "cross_module.api_signatures",
         "persistence.cross_schema_access",
         "domain_layer.forbidden_namespaces",
-        "domain_layer.forbidden_calls",
+        "ambient_calls",
+        "direct_io",
         "layers.order",
         "flutter_layers.imports",
         "flutter_layers.appearance",
@@ -225,7 +273,8 @@
         "cross_module.api_signatures": { "$ref": "#/$defs/mechanisms" },
         "persistence.cross_schema_access": { "$ref": "#/$defs/mechanisms" },
         "domain_layer.forbidden_namespaces": { "$ref": "#/$defs/mechanisms" },
-        "domain_layer.forbidden_calls": { "$ref": "#/$defs/mechanisms" },
+        "ambient_calls": { "$ref": "#/$defs/mechanisms" },
+        "direct_io": { "$ref": "#/$defs/mechanisms" },
         "layers.order": { "$ref": "#/$defs/mechanisms" },
         "flutter_layers.imports": { "$ref": "#/$defs/mechanisms" },
         "flutter_layers.appearance": { "$ref": "#/$defs/mechanisms" },

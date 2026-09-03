@@ -1,0 +1,10 @@
+const Set<String> ambientDartLayers = {'application', 'domain'};
+
+const Set<String> forbiddenAmbientDartIdentifiers = {
+  'Example.now',
+  'ExampleRandom',
+};
+
+const Set<String> directIoDartOwnerLayers = {'data'};
+
+const Set<String> directIoDartForbiddenImports = {'dart:example_io'};

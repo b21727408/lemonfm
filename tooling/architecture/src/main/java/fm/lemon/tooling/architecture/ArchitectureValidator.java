@@ -76,6 +76,11 @@ final class ArchitectureValidator {
     if (!unclassified.isEmpty()) {
       fail("API type categories have no classifier: " + unclassified);
     }
+    Set<String> backendLayers = textValues(layers.path("order"));
+    validateKnownLayers(
+        "Java direct-I/O owner",
+        policies.path("direct_io").path("java").path("owner_layers"),
+        backendLayers);
   }
 
   private void validateSchema() throws IOException {
@@ -244,6 +249,21 @@ final class ArchitectureValidator {
     String appearanceOwner = policy.path("appearance").path("owner").asText();
     if (!packages.contains(appearanceOwner)) {
       fail("Flutter appearance owner is not a declared workspace package: " + appearanceOwner);
+    }
+    JsonNode policies = modules.path("policies");
+    validateKnownLayers(
+        "Dart ambient-call", policies.path("ambient_calls").path("dart").path("layers"), layers);
+    validateKnownLayers(
+        "Dart direct-I/O owner",
+        policies.path("direct_io").path("dart").path("owner_layers"),
+        layers);
+  }
+
+  private static void validateKnownLayers(String policy, JsonNode configured, Set<String> layers) {
+    for (String layer : textValues(configured)) {
+      if (!layers.contains(layer)) {
+        fail(policy + " policy names unknown layer " + layer);
+      }
     }
   }
 

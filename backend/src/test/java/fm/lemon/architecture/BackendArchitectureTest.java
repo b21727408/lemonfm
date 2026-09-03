@@ -81,6 +81,29 @@ final class BackendArchitectureTest {
             .contains("may appear only as annotation metadata"));
   }
 
+  @Test
+  void directHttpIoRuleRejectsPureLayerFixtures() {
+    for (Class<?> fixtureType :
+        Set.of(
+            fm.lemon.identity.domain.DomainHttpClientFixture.class,
+            fm.lemon.identity.application.ApplicationHttpClientFixture.class)) {
+      JavaClasses fixture = new ClassFileImporter().importClasses(fixtureType);
+      AssertionError violation =
+          assertThrows(AssertionError.class, () -> assertModuleBoundaries(fixture));
+      assertTrue(
+          Objects.requireNonNull(violation.getMessage())
+              .contains("direct HTTP I/O dependency belongs in [infrastructure]"));
+    }
+  }
+
+  @Test
+  void directHttpIoRuleAllowsInfrastructureFixture() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(fm.lemon.identity.infrastructure.InfrastructureHttpClientFixture.class);
+    assertDoesNotThrow(() -> assertModuleBoundaries(fixture));
+  }
+
   private static void assertModuleBoundaries(JavaClasses classes) {
     for (JavaClass source : classes) {
       String sourceModule = moduleOf(source.getPackageName());
@@ -95,6 +118,7 @@ final class BackendArchitectureTest {
         String targetLayer =
             targetModule == null ? null : layerOf(target.getPackageName(), targetModule);
 
+        assertDirectIoOwnership(source, sourceLayer, targetName);
         if (POLICY.crossModuleVisibleLayer().equals(sourceLayer)) {
           assertApiDependency(source, sourceModule, targetName, targetModule, targetLayer);
         }
@@ -186,6 +210,23 @@ final class BackendArchitectureTest {
         && !"domain".equals(targetLayer)
         && !POLICY.domainDependencies().contains(targetLayer)) {
       fail(source.getName() + " domain dependency is forbidden: " + targetName);
+    }
+  }
+
+  private static void assertDirectIoOwnership(
+      JavaClass source, @Nullable String sourceLayer, String targetName) {
+    if (sourceLayer == null || POLICY.directIoJavaOwnerLayers().contains(sourceLayer)) {
+      return;
+    }
+    for (String namespace : POLICY.directIoJavaForbiddenNamespaces()) {
+      if (targetName.startsWith(namespace)) {
+        fail(
+            source.getName()
+                + " direct HTTP I/O dependency belongs in "
+                + POLICY.directIoJavaOwnerLayers()
+                + ": "
+                + targetName);
+      }
     }
   }
 

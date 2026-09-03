@@ -30,10 +30,26 @@
       "forbidden_namespaces" : {
         "java" : [ "org.springframework", "org.jooq", "com.fasterxml.jackson", "jakarta.persistence", "jakarta.servlet" ],
         "dart" : [ "package:flutter", "package:flutter_riverpod", "package:riverpod", "package:dio" ]
+      }
+    },
+    "ambient_calls" : {
+      "java" : {
+        "scope" : "repository_wide",
+        "forbidden_api_signatures" : [ "java.lang.System#out", "java.lang.System#currentTimeMillis()", "java.lang.Math#random()", "java.lang.Thread#sleep(long)", "java.util.Date#<init>()", "java.util.Locale#getDefault()", "java.util.TimeZone#getDefault()" ]
       },
-      "forbidden_calls" : {
-        "dart" : [ "DateTime.now", "Random", "Platform" ],
-        "java" : [ "System.currentTimeMillis", "java.util.Date", "Math.random" ]
+      "dart" : {
+        "layers" : [ "domain", "application" ],
+        "forbidden_identifiers" : [ "DateTime.now", "Random", "Platform" ]
+      }
+    },
+    "direct_io" : {
+      "java" : {
+        "owner_layers" : [ "infrastructure" ],
+        "forbidden_namespaces" : [ "java.net.http.", "org.springframework.http.client.", "org.springframework.web.client.", "org.springframework.web.reactive.function.client." ]
+      },
+      "dart" : {
+        "owner_layers" : [ "data" ],
+        "forbidden_imports" : [ "dart:io" ]
       }
     },
     "layers" : {
@@ -104,7 +120,8 @@
     "cross_module.api_signatures" : [ "archunit" ],
     "persistence.cross_schema_access" : [ "archunit", "repository_sql_boundary" ],
     "domain_layer.forbidden_namespaces" : [ "archunit", "lemon_lints" ],
-    "domain_layer.forbidden_calls" : [ "lemon_lints", "forbidden_apis" ],
+    "ambient_calls" : [ "lemon_lints", "forbidden_apis" ],
+    "direct_io" : [ "archunit", "lemon_lints" ],
     "layers.order" : [ "archunit" ],
     "flutter_layers.imports" : [ "lemon_lints" ],
     "flutter_layers.appearance" : [ "lemon_lints" ],

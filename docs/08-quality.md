@@ -86,7 +86,11 @@ Error Prone for suspicious constructs. NullAway with JSpecify so nullability is
 a compile error rather than a production discovery. **forbidden-apis** for the
 ambient calls an AI reaches for by reflex: `System.out`, `new Date()`,
 `System.currentTimeMillis`, `Math.random`, `Thread.sleep`, default locale,
-default time zone. Each has an injected alternative.
+default time zone. Each has an injected alternative. These Java bans are
+repository-wide quality policy; their signature file is generated from
+`architecture/modules.yaml`. Dart's corresponding ambient-call policy is
+scoped there to feature `domain` and `application` and generated into
+`lemon_lints`.
 
 **One tool, one job.** SpotBugs, PMD and a quality dashboard are deliberately
 absent: they overlap heavily with what is above, and a tool that does not
@@ -185,7 +189,9 @@ that classification. Other `DEFAULT` facts require call permission.
 
 **ArchUnit** — inside a module: `domain` importing no Spring, no jOOQ, no
 Jackson, no HTTP, no other module; layer direction `infrastructure → application
-→ domain`, and `domain` depending on nothing.
+→ domain`, `domain` depending on nothing, and direct HTTP client namespaces
+owned only by `infrastructure`. The namespace and owner-layer inputs are
+generated from `architecture/modules.yaml`.
 
 **Persistence ownership** — ArchUnit rejects another module's generated jOOQ
 types, and repository policy rejects raw schema-qualified SQL and string-based
@@ -204,7 +210,8 @@ the violation in a diff.
 cannot express. Start with five, because twenty lints written up front is its
 own project:
 
-- a feature layer importing a forbidden own layer, workspace package or SDK
+- a feature layer importing a forbidden own layer, workspace package or SDK,
+  including direct `dart:io` outside its declared `data` owner
 - a raw design value or framework visual component outside `lemon_ui`
 - a user-facing string literal in a widget
 - a direct analytics or vendor SDK call from a feature

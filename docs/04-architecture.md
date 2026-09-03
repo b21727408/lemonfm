@@ -162,7 +162,8 @@ declared `calls` edge. Focused fixtures pin this classification for the selected
 Modulith version.
 
 **ArchUnit** verifies the inside of a module: `domain` importing no framework,
-layer direction, no cross-module type references.
+layer direction, no cross-module type references, and direct HTTP client
+adapters living only in `infrastructure`.
 
 Both read their rules from `architecture/modules.yaml`. Adding a dependency
 means editing that file, which is a visible decision in a pull request rather
@@ -455,6 +456,11 @@ Riverpod and `lemon_ui`, but never imports `data` implementation details.
 `architecture/modules.yaml` declares the precise import sets consumed by
 `lemon_layer_boundary`.
 
+Direct platform/network I/O follows the same ownership boundary on both sides:
+backend HTTP clients live in `infrastructure`, and feature `dart:io` adapters
+live in `data`. The machine policy names the restricted SDK namespaces and
+imports; value-oriented JDK and Dart libraries remain available to pure code.
+
 **No feature depends on another feature.** They still need to reach each other —
 discovery opens a profile, a profile opens the composer — and `apps/mobile`
 owns that: a feature exposes routes and emits navigation intents, and the shell
@@ -467,7 +473,8 @@ controller lifecycle. A `domain/` file importing Riverpod fails the build.
 forbidden in `domain` and `application`; a `Clock` and an `IdGenerator` are
 injected instead. An AI reaching for the ambient clock is the single most
 common way a test becomes flaky, and the ban makes it impossible rather than
-discouraged.
+discouraged. The identifiers and affected layers are generated into the lint
+policy from `architecture/modules.yaml`.
 
 **Strings through slang.** No user-facing literal in a widget. Adding a locale
 is content work, never code work.
