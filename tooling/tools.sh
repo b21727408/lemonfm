@@ -1,5 +1,46 @@
 #!/usr/bin/env bash
 
+checksum_command_for_os() {
+  case "$1" in
+    Linux|MINGW*|MSYS*) printf '%s\n' sha256sum ;;
+    Darwin) printf '%s\n' shasum ;;
+    *) echo "Unsupported checksum platform: $1" >&2; return 69 ;;
+  esac
+}
+
+sha256_digest() {
+  local command
+  command="$(checksum_command_for_os "$(uname -s)")"
+  case "$command" in
+    sha256sum) sha256sum "$@" | cut -d' ' -f1 ;;
+    shasum) shasum -a 256 "$@" | cut -d' ' -f1 ;;
+    *) echo "Unsupported checksum command: $command" >&2; return 69 ;;
+  esac
+}
+
+verify_checksum_helper() {
+  local actual
+  actual="$(checksum_command_for_os Linux)"
+  if [[ "$actual" != sha256sum ]]; then
+    echo "Checksum command selection fixture failed for Linux: expected sha256sum, got $actual" >&2
+    return 70
+  fi
+  actual="$(checksum_command_for_os Darwin)"
+  if [[ "$actual" != shasum ]]; then
+    echo "Checksum command selection fixture failed for Darwin: expected shasum, got $actual" >&2
+    return 70
+  fi
+  actual="$(checksum_command_for_os MINGW64_NT)"
+  if [[ "$actual" != sha256sum ]]; then
+    echo "Checksum command selection fixture failed for Windows shell: expected sha256sum, got $actual" >&2
+    return 70
+  fi
+  if checksum_command_for_os Plan9 >/dev/null 2>&1; then
+    echo "Checksum platform-selection negative fixture did not fail" >&2
+    return 70
+  fi
+}
+
 tool_platform() {
   local os arch
   os="$(uname -s)"
@@ -54,7 +95,7 @@ resolve_pinned_tool() {
   download="$target.download"
   url="$base/$asset"
   curl --fail --location --retry 3 --silent --show-error "$url" --output "$download"
-  actual="$(sha256sum "$download" | cut -d' ' -f1)"
+  actual="$(sha256_digest "$download")"
   if [[ "$actual" != "$checksum" ]]; then
     rm -f "$download"
     echo "$name $version checksum mismatch: expected $checksum, got $actual" >&2

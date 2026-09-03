@@ -6,6 +6,8 @@ import static fm.lemon.tooling.architecture.ToolSupport.slash;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -111,6 +113,61 @@ final class DesignTokenGenerator {
               output.append(",\n  );\n");
             });
     return output.append("}\n").toString();
+  }
+
+  String generateAndroidGroundColor() throws IOException {
+    return """
+        <?xml version="1.0" encoding="utf-8"?>
+        <!-- GENERATED FILE — DO NOT EDIT. Generated from design/tokens/colors.json. -->
+        <resources>
+            <color name="lemon_bg0">%s</color>
+        </resources>
+        """
+        .formatted(groundColor());
+  }
+
+  String generateIosGroundColor() throws IOException {
+    String color = groundColor().substring(1);
+    return """
+        {
+          "colors" : [
+            {
+              "color" : {
+                "color-space" : "srgb",
+                "components" : {
+                  "alpha" : "1.000000",
+                  "blue" : "%s",
+                  "green" : "%s",
+                  "red" : "%s"
+                }
+              },
+              "idiom" : "universal"
+            }
+          ],
+          "info" : {
+            "author" : "lemon-generator",
+            "version" : 1
+          }
+        }
+        """
+        .formatted(
+            iosComponent(color.substring(4, 6)),
+            iosComponent(color.substring(2, 4)),
+            iosComponent(color.substring(0, 2)));
+  }
+
+  private String groundColor() throws IOException {
+    String value = readToken("colors.json").path("bg0").asText();
+    if (!value.matches("#[0-9A-Fa-f]{6}")) {
+      fail("Native launch color requires a six-digit bg0 token, got " + value);
+    }
+    return value.toUpperCase();
+  }
+
+  private static String iosComponent(String hex) {
+    return BigDecimal.valueOf(Integer.parseInt(hex, 16))
+        .divide(BigDecimal.valueOf(255), 6, RoundingMode.HALF_UP)
+        .toPlainString();
   }
 
   private JsonNode readToken(String name) throws IOException {

@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+# PROVISIONAL: this fixture must be rejected outside canonical documentation.

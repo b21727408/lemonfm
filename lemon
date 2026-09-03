@@ -92,9 +92,30 @@ flutter_tests() {
 }
 
 contract_roundtrip() {
-  flutter_pub_get
-  "$DART" run packages/api_client/tool/contract_fixture_roundtrip.dart
-  "$DART" run packages/admin_api_client/tool/contract_fixture_roundtrip.dart
+  verify_flutter
+  "$GRADLE" :backend:generateFixtureContractBindings
+  local manifest="$ROOT/contracts/fixtures/generated/fixture-contracts.json"
+  local public_client="$ROOT/backend/build/openapi/fixture-publicv1-client"
+  local admin_client="$ROOT/backend/build/openapi/fixture-adminv1-client"
+  mkdir -p "$public_client/tool" "$admin_client/tool"
+  sed 's/name: contract_fixture_client/name: contract_fixture_public_client/' \
+    "$ROOT/contracts/fixtures/http/dart/pubspec.fixture.yaml" >"$public_client/pubspec.yaml"
+  sed 's/name: contract_fixture_client/name: contract_fixture_admin_client/' \
+    "$ROOT/contracts/fixtures/http/dart/pubspec.fixture.yaml" >"$admin_client/pubspec.yaml"
+  cp "$ROOT/contracts/fixtures/http/dart/public_roundtrip.dart.txt" "$public_client/tool/roundtrip.dart"
+  cp "$ROOT/contracts/fixtures/http/dart/admin_roundtrip.dart.txt" "$admin_client/tool/roundtrip.dart"
+  (
+    cd "$public_client"
+    "$DART" pub get
+    "$DART" run build_runner build
+    "$DART" run tool/roundtrip.dart "$manifest"
+  )
+  (
+    cd "$admin_client"
+    "$DART" pub get
+    "$DART" run build_runner build
+    "$DART" run tool/roundtrip.dart "$manifest"
+  )
 }
 
 openapi_compatibility() {
@@ -126,7 +147,7 @@ gitleaks_check() {
   fixture_dir="${LEMON_TOOL_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/lemon/tools}/gitleaks-self-test"
   mkdir -p "$fixture_dir"
   local suffix
-  suffix="$(printf '%s' 'lemon-gitleaks-detector-fixture' | sha256sum | cut -c1-36)"
+  suffix="$(printf '%s' 'lemon-gitleaks-detector-fixture' | sha256_digest | cut -c1-36)"
   printf 'token = "ghp_%s"\n' "$suffix" >"$fixture_dir/fixture.txt"
   set +e
   "$gitleaks" dir --no-banner --no-color "$fixture_dir/fixture.txt" >/dev/null 2>&1
@@ -144,10 +165,87 @@ dependency_integrity() {
   flutter_pub_get
   "$GRADLE" :backend:dependencies :tooling:architecture:dependencies >/dev/null
   "$GRADLE" -p build-logic dependencies >/dev/null
-  git diff --exit-code -- '**/gradle.lockfile' pubspec.lock gradle/verification-metadata.xml
+  git diff --exit-code -- '**/gradle.lockfile' pubspec.lock '**/verification-metadata.xml'
+}
+
+compare_generated_path() {
+  local expected_root="$1" actual_root="$2" relative="$3"
+  local expected="$expected_root/$relative" actual="$actual_root/$relative"
+  if [[ ! -e "$expected" && ! -e "$actual" ]]; then
+    return 0
+  fi
+  if [[ ! -e "$expected" || ! -e "$actual" ]] || ! diff -r -q "$expected" "$actual" >/dev/null; then
+    echo "Generated artifact drift: $relative differs; run ./lemon generate" >&2
+    return 1
+  fi
+}
+
+verify_generated_drift_detector() {
+  if compare_generated_path \
+    "$ROOT/tooling/generated-drift-fixtures/current" \
+    "$ROOT/tooling/generated-drift-fixtures/stale" \
+    sentinel.txt >/dev/null 2>&1; then
+    echo "Generated drift permanent stale-output fixture did not fail" >&2
+    return 70
+  fi
+}
+
+copy_check_workspace() {
+  local destination="$1" relative
+  while IFS= read -r -d '' relative; do
+    [[ -f "$ROOT/$relative" ]] || continue
+    case "$relative" in
+      gradle/wrapper/gradle-wrapper.jar) ;;
+      *.7z|*.aab|*.apk|*.dmg|*.gz|*.ipa|*.jar|*.rar|*.tar|*.tgz|*.zip) continue ;;
+    esac
+    mkdir -p "$destination/$(dirname "$relative")"
+    cp -p "$ROOT/$relative" "$destination/$relative"
+  done < <(git -C "$ROOT" ls-files -z --cached --others --exclude-standard)
+}
+
+generated_drift_check() {
+  verify_generated_drift_detector
+  verify_flutter
+  local sandbox status=0
+  sandbox="$(mktemp -d "${TMPDIR:-/tmp}/lemon-generated-drift.XXXXXX")"
+  copy_check_workspace "$sandbox"
+  set +e
+  (cd "$sandbox" && LEMON_FLUTTER_BIN="$FLUTTER" ./lemon generate)
+  status=$?
+  set -e
+  if [[ "$status" -ne 0 ]]; then
+    echo "Isolated generation failed while checking generated drift" >&2
+  else
+    local path
+    for path in \
+      AGENTS.md \
+      architecture/generated \
+      apps/mobile/android/app/src/main/res/values/lemon_generated_colors.xml \
+      apps/mobile/ios/Runner/Assets.xcassets/LemonBg0.colorset \
+      backend/src/generated \
+      backend/src/main/java \
+      backend/src/test/resources/generated \
+      config/forbidden-apis/signatures.txt \
+      contracts/fixtures/generated \
+      contracts/generated-bindings.sha256.json \
+      packages/admin_api_client/lib \
+      packages/api_client/lib \
+      packages/lemon_lints/lib/src/generated \
+      packages/lemon_ui/lib/src/generated \
+      tooling/generated; do
+      compare_generated_path "$ROOT" "$sandbox" "$path" || status=1
+    done
+  fi
+  case "$sandbox" in
+    "${TMPDIR:-/tmp}"/lemon-generated-drift.*) rm -rf -- "$sandbox" ;;
+    *) echo "Refusing to remove unexpected drift sandbox: $sandbox" >&2; return 70 ;;
+  esac
+  [[ "$status" -eq 0 ]] || return "$status"
+  echo "generated artifacts: current (isolated non-mutating regeneration)"
 }
 
 repository_security() {
+  verify_checksum_helper
   architecture "check policy"
   dependency_integrity
   gitleaks_check
@@ -218,6 +316,7 @@ case "${1:-}" in
       build-smoke) build_smoke ;;
       all)
         architecture "check all"
+        generated_drift_check
         "$GRADLE" :tooling:architecture:spotlessCheck :backend:contractsCheck :backend:check :backend:postgresIntegrationTest
         repository_security
         contracts_check

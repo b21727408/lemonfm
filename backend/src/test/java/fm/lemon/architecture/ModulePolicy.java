@@ -72,6 +72,10 @@ final class ModulePolicy {
     return values("policy.directIo.java.forbiddenNamespaces");
   }
 
+  String externalIoMarker() {
+    return required("policy.transactions.externalIoMarker");
+  }
+
   List<String> layerOrder() {
     return List.copyOf(values("policy.layers.order"));
   }

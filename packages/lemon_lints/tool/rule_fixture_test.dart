@@ -16,6 +16,13 @@ Future<void> main() async {
     temporary.uri.resolve('packages/features/profile/'),
   );
   await package.create(recursive: true);
+  final foreignPrivate = File.fromUri(
+    temporary.uri.resolve(
+      'packages/features/identity/lib/src/domain/private.dart',
+    ),
+  );
+  await foreignPrivate.parent.create(recursive: true);
+  await foreignPrivate.writeAsString('final class PrivateIdentityValue {}\n');
   final pluginPath = root.uri
       .resolve('packages/lemon_lints/')
       .toFilePath()
@@ -54,6 +61,11 @@ plugins:
       'lib/src/presentation/layer_private.dart',
       'lemon_layer_boundary',
     ),
+    FixtureCase(
+      'layer_cross_feature_relative_negative',
+      'lib/src/presentation/relative_private.dart',
+      'lemon_layer_boundary',
+    ),
     FixtureCase('layer_positive', 'lib/src/domain/layer.dart', null),
     FixtureCase(
       'layer_domain_technical_negative',
@@ -79,6 +91,11 @@ plugins:
     FixtureCase(
       'layer_application_dart_io_negative',
       'lib/src/application/http_client.dart',
+      'lemon_layer_boundary',
+    ),
+    FixtureCase(
+      'layer_application_dart_io_alias_negative',
+      'lib/src/application/aliased_http_client.dart',
       'lemon_layer_boundary',
     ),
     FixtureCase(
@@ -136,6 +153,11 @@ plugins:
     FixtureCase(
       'determinism_negative',
       'lib/src/application/determinism.dart',
+      'lemon_determinism_boundary',
+    ),
+    FixtureCase(
+      'determinism_alias_negative',
+      'lib/src/application/aliased_determinism.dart',
       'lemon_determinism_boundary',
     ),
     FixtureCase(

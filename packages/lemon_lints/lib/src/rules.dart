@@ -84,17 +84,30 @@ final class _LayerImportVisitor extends SimpleAstVisitor<void> {
       return;
     }
     final importedPackage = _packageName(uri);
-    if (importedPackage != null &&
-        importedPackage != feature &&
-        featurePackages.contains(importedPackage)) {
+    final analyzerResolvedPath = node
+        .libraryImport
+        ?.importedLibrary
+        ?.firstFragment
+        .source
+        .fullName
+        .replaceAll('\\', '/');
+    final resolvedPath = _relativeTargetPath(uri) ?? analyzerResolvedPath;
+    final resolvedFeature = resolvedPath == null
+        ? importedPackage
+        : _featureName(resolvedPath) ?? importedPackage;
+    if (resolvedFeature != null &&
+        resolvedFeature != feature &&
+        featurePackages.contains(resolvedFeature)) {
       rule.reportAtNode(
         node,
-        arguments: ['$feature cannot import another feature package: $uri'],
+        arguments: [
+          '$feature cannot import another feature package: $resolvedFeature ($uri)',
+        ],
       );
       return;
     }
 
-    final ownTargetLayer = _ownTargetLayer(uri);
+    final ownTargetLayer = _ownTargetLayer(uri, resolvedPath);
     if (ownTargetLayer != null &&
         !allowedOwnLayerImports[layer]!.contains(ownTargetLayer)) {
       rule.reportAtNode(
@@ -125,7 +138,15 @@ final class _LayerImportVisitor extends SimpleAstVisitor<void> {
     }
   }
 
-  String? _ownTargetLayer(String uri) {
+  String? _relativeTargetPath(String uri) {
+    if (uri.startsWith('package:') || uri.startsWith('dart:')) return null;
+    return Uri.file(sourcePath).resolve(uri).toFilePath().replaceAll('\\', '/');
+  }
+
+  String? _ownTargetLayer(String uri, String? resolvedPath) {
+    if (resolvedPath != null && _featureName(resolvedPath) == feature) {
+      return _layerName(resolvedPath);
+    }
     if (uri.startsWith('package:$feature/')) {
       return _layerName('/lib/${uri.substring('package:$feature/'.length)}');
     }
@@ -360,7 +381,7 @@ final class _DeterminismVisitor extends SimpleAstVisitor<void> {
   @override
   void visitInstanceCreationExpression(InstanceCreationExpression node) {
     final constructor = node.constructorName;
-    final type = constructor.type.name.lexeme;
+    final type = constructor.type.name.lexeme.split('.').last;
     final name = constructor.name?.name;
     final identifier = name == null ? type : '$type.$name';
     if (forbiddenAmbientDartIdentifiers.contains(type) ||
@@ -373,7 +394,7 @@ final class _DeterminismVisitor extends SimpleAstVisitor<void> {
   void visitMethodInvocation(MethodInvocation node) {
     final target = node.target?.toSource();
     if (target == null) return;
-    final identifier = '$target.${node.methodName.name}';
+    final identifier = '${target.split('.').last}.${node.methodName.name}';
     if (forbiddenAmbientDartIdentifiers.contains(identifier)) {
       rule.reportAtNode(node, arguments: ['$identifier()']);
     }

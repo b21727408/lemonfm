@@ -100,8 +100,46 @@ final class BackendArchitectureTest {
   void directHttpIoRuleAllowsInfrastructureFixture() {
     JavaClasses fixture =
         new ClassFileImporter()
-            .importClasses(fm.lemon.identity.infrastructure.InfrastructureHttpClientFixture.class);
+            .importClasses(fm.lemon.identity.infrastructure.MarkedHttpAdapterFixture.class);
     assertDoesNotThrow(() -> assertModuleBoundaries(fixture));
+  }
+
+  @Test
+  void directIoAdapterBehindUnmarkedCapabilityFails() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(
+                fm.lemon.identity.application.UnmarkedExternalPortFixture.class,
+                fm.lemon.identity.infrastructure.UnmarkedHttpAdapterFixture.class);
+    AssertionError violation =
+        assertThrows(AssertionError.class, () -> assertDirectIoCapabilitiesMarked(fixture));
+    assertTrue(
+        Objects.requireNonNull(violation.getMessage())
+            .contains("direct-I/O adapter must carry @ExternalIo"));
+  }
+
+  @Test
+  void markingOnlyImplementationCannotHideUnmarkedPort() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(
+                fm.lemon.identity.application.UnmarkedExternalPortFixture.class,
+                fm.lemon.identity.infrastructure.ImplementationOnlyMarkedHttpAdapterFixture.class);
+    AssertionError violation =
+        assertThrows(AssertionError.class, () -> assertDirectIoCapabilitiesMarked(fixture));
+    assertTrue(
+        Objects.requireNonNull(violation.getMessage())
+            .contains("external-I/O capability port must carry @ExternalIo"));
+  }
+
+  @Test
+  void markedPortAndAdapterPassExternalIoCapabilityRule() {
+    JavaClasses fixture =
+        new ClassFileImporter()
+            .importClasses(
+                fm.lemon.identity.application.MarkedExternalPortFixture.class,
+                fm.lemon.identity.infrastructure.MarkedHttpAdapterFixture.class);
+    assertDoesNotThrow(() -> assertDirectIoCapabilitiesMarked(fixture));
   }
 
   private static void assertModuleBoundaries(JavaClasses classes) {
@@ -141,6 +179,11 @@ final class BackendArchitectureTest {
   }
 
   @Test
+  void outboundAdaptersExposeOnlyMarkedCapabilities() {
+    assertDirectIoCapabilitiesMarked(CLASSES);
+  }
+
+  @Test
   void externalIoRuleIsProvenByATransitiveFixture() {
     JavaClasses fixture = new ClassFileImporter().importPackages("fm.lemon.externaliofixture");
     assertThrows(
@@ -151,7 +194,7 @@ final class BackendArchitectureTest {
     Set<JavaClass> external = new HashSet<>();
     Set<JavaClass> transactional = new HashSet<>();
     for (JavaClass type : classes) {
-      if (type.isAnnotatedWith(ExternalIo.class)) {
+      if (type.isAnnotatedWith(POLICY.externalIoMarker())) {
         external.add(type);
       }
       if (type.isAnnotatedWith(Transactional.class)
@@ -163,6 +206,54 @@ final class BackendArchitectureTest {
     for (JavaClass source : transactional) {
       assertCannotReachExternal(source, external);
     }
+  }
+
+  private static void assertDirectIoCapabilitiesMarked(JavaClasses classes) {
+    for (JavaClass adapter : classes) {
+      String module = moduleOf(adapter.getPackageName());
+      if (module == null) {
+        continue;
+      }
+      String layer = layerOf(adapter.getPackageName(), module);
+      if (!POLICY.directIoJavaOwnerLayers().contains(layer) || !dependsOnDirectIo(adapter)) {
+        continue;
+      }
+      if (!adapter.isAnnotatedWith(POLICY.externalIoMarker())) {
+        fail(
+            adapter.getName()
+                + " direct-I/O adapter must carry @ExternalIo ("
+                + POLICY.externalIoMarker()
+                + ")");
+      }
+      Set<JavaClass> capabilityPorts =
+          adapter.getRawInterfaces().stream()
+              .filter(port -> module.equals(moduleOf(port.getPackageName())))
+              .filter(
+                  port ->
+                      !POLICY
+                          .directIoJavaOwnerLayers()
+                          .contains(layerOf(port.getPackageName(), module)))
+              .collect(java.util.stream.Collectors.toSet());
+      if (capabilityPorts.isEmpty()) {
+        fail(adapter.getName() + " direct-I/O adapter must implement a marked capability port");
+      }
+      for (JavaClass port : capabilityPorts) {
+        if (!port.isAnnotatedWith(POLICY.externalIoMarker())) {
+          fail(
+              adapter.getName()
+                  + " external-I/O capability port must carry @ExternalIo: "
+                  + port.getName());
+        }
+      }
+    }
+  }
+
+  private static boolean dependsOnDirectIo(JavaClass type) {
+    return type.getDirectDependenciesFromSelf().stream()
+        .map(dependency -> dependency.getTargetClass().getName())
+        .anyMatch(
+            target ->
+                POLICY.directIoJavaForbiddenNamespaces().stream().anyMatch(target::startsWith));
   }
 
   @Test

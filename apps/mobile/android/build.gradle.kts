@@ -1,7 +1,13 @@
+import org.gradle.api.artifacts.dsl.LockMode
+
 allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+    dependencyLocking {
+        lockAllConfigurations()
+        lockMode.set(LockMode.STRICT)
     }
 }
 

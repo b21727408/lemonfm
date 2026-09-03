@@ -312,6 +312,10 @@ cannot watch for network calls at runtime, so the shape is arranged so the test
 has something to check: every outbound adapter is marked
 `fm.lemon.architecture.ExternalIo`, and a transactional application operation
 may not depend directly or transitively on an API or port carrying that mark.
+Every configured direct-I/O adapter must implement a marked application/API
+capability; marking only the infrastructure implementation is a build failure,
+because callers normally depend on the port and would otherwise bypass the
+transitive rule.
 The marker is capability/interface-scoped, not module-wide. A module may expose
 transaction-safe synchronous APIs beside a separate marked preflight or hosted
 API without making the whole module external. External work happens outside the

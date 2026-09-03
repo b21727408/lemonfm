@@ -14,11 +14,9 @@ import 'package:built_value/iso_8601_date_time_serializer.dart';
 import 'package:api_client/src/date_serializer.dart';
 import 'package:api_client/src/model/date.dart';
 
-import 'package:api_client/src/model/contract_fixture_response.dart';
-
 part 'serializers.g.dart';
 
-@SerializersFor([ContractFixtureResponse])
+@SerializersFor([])
 Serializers serializers =
     (_$serializers.toBuilder()
           ..add(const OneOfSerializer())

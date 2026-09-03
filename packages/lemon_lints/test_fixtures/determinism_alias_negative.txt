@@ -1,0 +1,3 @@
+import 'dart:math' as entropy;
+
+int unstable() => entropy.Random().nextInt(10);

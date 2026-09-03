@@ -152,7 +152,10 @@ tooling project build files contain only their `plugins` block.
 answer different questions: locking asks whether today's dependency graph is the
 same as yesterday's; verification asks whether the artefact downloaded is the
 artefact expected. The Gradle wrapper and the Java toolchain are pinned, so a
-build never depends on whatever JDK a machine happens to have.
+build never depends on whatever JDK a machine happens to have. This applies to
+both the backend/tooling Gradle build and Flutter's Android runner: each commits
+strict lock state and checksum verification metadata, and each wrapper
+distribution declares its checksum.
 
 Existing Flyway migration files are append-only. Pull-request comparison with
 the merge base rejects modifications, deletions, renames and type changes;
@@ -290,6 +293,10 @@ both directions.
 - **Both** clients regenerate with no diff — Dart client and Java server
   interfaces. A server implementing a generated interface cannot drift from the
   specification without failing to compile.
+- Separate fixture specifications generate build-local Java and Dart bindings
+  with the same production generator configuration and exercise both surfaces
+  against spec-derived mocks. Fixture operations and controllers never enter a
+  production contract, client package or Spring component scan.
 - Breaking-change detection compares the specification against the main branch
   and fails on a removed field or a narrowed type. "A field disappeared and
   nobody noticed" stops being possible.
@@ -321,6 +328,13 @@ the pull request, and builds the rest of the slice. **CI fails on the marker**,
 so this is not a way to defer work — it is a build failure the session declares
 on itself, and only an answer clears it.
 <!-- /agent-law -->
+
+The repository gate scans tracked, authored text across source code, SQL, shell
+scripts, TOML, properties, XML, Swift, Kotlin, Gradle and equivalent configuration
+surfaces. Canonical prose (`docs/` and generated `AGENTS.md`), generated outputs,
+tool caches and binary/archive formats are explicit exclusions: prose must be
+able to describe this protocol, while generated and non-text inputs are governed
+by their own drift or integrity checks.
 
 A plausible invented number is worse than a red build, because it silently
 becomes a decision nobody remembers making.
@@ -387,6 +401,12 @@ worse than having no constitution at all.
 
 `lemon.cmd` is the Windows entry point and delegates to that same implementation;
 it is not a second command graph.
+
+The complete check regenerates architecture policy, AGENTS, tokens, jOOQ and
+both Java/Dart OpenAPI surfaces in an isolated temporary workspace and compares
+them with the checked-in outputs. It never repairs the working tree, dependency
+locks or verification metadata; stale generation is a failure with
+`./lemon generate` as the explicit maintenance action.
 
 **CI runs the same commands.** A session is told "run `./lemon check`" rather
 than being handed forty tool invocations, and "it passed locally but failed in

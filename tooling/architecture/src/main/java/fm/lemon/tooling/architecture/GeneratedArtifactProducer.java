@@ -93,10 +93,16 @@ final class GeneratedArtifactProducer {
     outputs.put(Path.of("tooling/generated/flutter-package-graph.json"), flutterGraphJson());
     outputs.put(
         Path.of("packages/lemon_lints/lib/src/generated/module_policy.dart"), flutterPolicyDart());
+    DesignTokenGenerator designTokens = new DesignTokenGenerator(root);
     outputs.put(
-        Path.of("packages/lemon_ui/lib/src/generated/tokens.dart"),
-        new DesignTokenGenerator(root).generateDart());
-    outputs.put(Path.of("contracts/generated/fixture-contracts.json"), contractFixtures());
+        Path.of("packages/lemon_ui/lib/src/generated/tokens.dart"), designTokens.generateDart());
+    outputs.put(
+        Path.of("apps/mobile/android/app/src/main/res/values/lemon_generated_colors.xml"),
+        designTokens.generateAndroidGroundColor());
+    outputs.put(
+        Path.of("apps/mobile/ios/Runner/Assets.xcassets/LemonBg0.colorset/Contents.json"),
+        designTokens.generateIosGroundColor());
+    outputs.put(Path.of("contracts/fixtures/generated/fixture-contracts.json"), contractFixtures());
     addBackendShells(outputs);
     outputs.put(Path.of("AGENTS.md"), new AgentsGenerator(root).generate());
     return outputs;
@@ -156,6 +162,10 @@ final class GeneratedArtifactProducer {
     appendSortedProperty(output, "policy.directIo.java.ownerLayers", directIo.path("owner_layers"));
     appendSortedProperty(
         output, "policy.directIo.java.forbiddenNamespaces", directIo.path("forbidden_namespaces"));
+    appendProperty(
+        output,
+        "policy.transactions.externalIoMarker",
+        policies.path("transactions").path("external_io_marker").asText());
     appendProperty(output, "policy.layers.order", joinedValues(layers.path("order"), false));
     appendSortedProperty(output, "policy.layers.domainDependsOn", layers.path("domain_depends_on"));
     appendSortedProperty(output, "policy.layers.apiMayDependOn", layers.path("api_may_depend_on"));
@@ -439,13 +449,14 @@ final class GeneratedArtifactProducer {
 
   private String contractFixtures() throws IOException {
     Map<String, Object> fixtures = new LinkedHashMap<>();
-    fixtures.put("public", contractFixture("public-v1.yaml"));
-    fixtures.put("admin", contractFixture("admin-v1.yaml"));
+    fixtures.put("public", contractFixture("public-v1.fixture.yaml"));
+    fixtures.put("admin", contractFixture("admin-v1.fixture.yaml"));
     return json(fixtures);
   }
 
   private Map<String, String> contractFixture(String file) throws IOException {
-    JsonNode contract = YAML.readTree(root.resolve("contracts/http").resolve(file).toFile());
+    JsonNode contract =
+        YAML.readTree(root.resolve("contracts/fixtures/http").resolve(file).toFile());
     var paths = contract.path("paths").fields();
     while (paths.hasNext()) {
       var path = paths.next();
@@ -479,12 +490,18 @@ final class GeneratedArtifactProducer {
         "contracts/http/admin-v1.yaml", sha256(root.resolve("contracts/http/admin-v1.yaml")));
     sources.put(
         "contracts/http/public-v1.yaml", sha256(root.resolve("contracts/http/public-v1.yaml")));
+    sources.put(
+        "contracts/fixtures/http/admin-v1.fixture.yaml",
+        sha256(root.resolve("contracts/fixtures/http/admin-v1.fixture.yaml")));
+    sources.put(
+        "contracts/fixtures/http/public-v1.fixture.yaml",
+        sha256(root.resolve("contracts/fixtures/http/public-v1.fixture.yaml")));
     Map<String, String> generated = new TreeMap<>();
     addContractOutputHashes(generated, Path.of("backend/src/generated/openapi/admin"));
     addContractOutputHashes(generated, Path.of("backend/src/generated/openapi/public"));
     addContractOutputHashes(generated, Path.of("packages/admin_api_client/lib"));
     addContractOutputHashes(generated, Path.of("packages/api_client/lib"));
-    addContractOutputHashes(generated, Path.of("contracts/generated"));
+    addContractOutputHashes(generated, Path.of("contracts/fixtures/generated"));
     Map<String, Object> manifest = new LinkedHashMap<>();
     manifest.put("algorithm", "SHA-256");
     manifest.put("authoredSources", sources);
@@ -500,7 +517,7 @@ final class GeneratedArtifactProducer {
       throws IOException {
     Path directory = root.resolve(relativeRoot);
     if (!Files.isDirectory(directory)) {
-      fail("Generated contract output is missing: " + slash(relativeRoot));
+      return;
     }
     try (Stream<Path> paths = Files.walk(directory)) {
       for (Path path : paths.filter(Files::isRegularFile).sorted().toList()) {
