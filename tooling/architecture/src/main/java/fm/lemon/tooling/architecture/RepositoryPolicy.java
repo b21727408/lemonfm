@@ -262,13 +262,7 @@ final class RepositoryPolicy {
     if (relative.contains("/.dart_tool/") || relative.contains("/build/")) {
       return false;
     }
-    return relative.endsWith(".dart")
-        || relative.endsWith(".java")
-        || relative.endsWith(".json")
-        || relative.endsWith(".kts")
-        || relative.endsWith(".properties")
-        || relative.endsWith(".yaml")
-        || relative.endsWith(".yml");
+    return isProvisionalText(relative);
   }
 
   private void checkNativeLaunchSurface(List<String> violations) throws IOException {
