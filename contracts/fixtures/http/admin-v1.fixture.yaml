@@ -1,0 +1,29 @@
+openapi: 3.0.3
+info:
+  title: Lemon.fm admin generator fixture
+  version: 1.0.0
+paths:
+  /admin/v1/_contract/fixture:
+    get:
+      operationId: getAdminContractFixture
+      tags:
+        - ContractFixture
+      responses:
+        '200':
+          description: Generated-contract fixture response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractFixtureResponse'
+components:
+  schemas:
+    ContractFixtureResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - fixture
+      properties:
+        fixture:
+          type: string
+          enum:
+            - admin-v1

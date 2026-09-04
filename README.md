@@ -55,12 +55,11 @@ drifted once.
 
 ## Getting started
 
-Prerequisites and exact versions are pinned in the repository and listed in
-[`docs/08-quality`](docs/08-quality.md).
+Prerequisites are described in [`docs/08-quality`](docs/08-quality.md); exact
+tool and dependency versions are pinned by the repository itself.
 
 ```bash
-docker compose up postgres storage wiremock   # dependencies in containers
-./lemon dev                                    # everything else natively
+./lemon dev      # starts loopback-only PostgreSQL, waits for health, then boots natively
 ```
 
 One command surface, and CI runs the same commands:
@@ -72,10 +71,13 @@ One command surface, and CI runs the same commands:
 ./lemon generate   # clients, tokens, AGENTS.md, boundary rules
 ```
 
+On Windows, `lemon.cmd` exposes the same commands by delegating to the single
+Git-for-Windows Bash implementation; it contains no duplicated build logic.
+
 ## Working here
 
-`main` is protected. Everything arrives through a pull request with a green
-pipeline — policy checks, then the fast per-stack jobs, then contracts,
+Everything is intended to arrive through a pull request with a green pipeline —
+wrapper validation and policy checks, then the fast per-stack jobs, contracts,
 integration, build smoke and security. The stages are defined in
 [`docs/08-quality`](docs/08-quality.md).
 
@@ -87,9 +89,11 @@ Boundaries are defined in [`architecture/modules.yaml`](architecture/modules.yam
 and enforced from it. Changing what a module may depend on means editing that
 file.
 
-Build logic lives in `backend/build-logic/` and is owned separately. **A feature
+Build logic lives in `build-logic/` and is owned separately. **A feature
 task never changes build logic, dependency policy or a quality gate** — a task
-that needs to is a build-infrastructure task and says so in its title.
+that needs to is a build-infrastructure task and uses a `build:` or
+`chore(build):` PR title. Branch protection remains founder-managed GitHub
+configuration and is not claimed by the repository itself.
 
 Commits follow the conventional format, with `safety:` and `content:` as
 first-class types.

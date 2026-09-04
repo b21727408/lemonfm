@@ -1,0 +1,10 @@
+{
+  "public" : {
+    "path" : "/v1/_contract/fixture",
+    "fixture" : "public-v1"
+  },
+  "admin" : {
+    "path" : "/admin/v1/_contract/fixture",
+    "fixture" : "admin-v1"
+  }
+}

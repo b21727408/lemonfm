@@ -1,0 +1,17 @@
+{
+  "family": {
+    "display": "Space Grotesk",
+    "body": "Inter"
+  },
+  "style": {
+    "displayXl": {"size": 40, "lineHeight": 44, "minimumSize": 32, "minimumLineHeight": 36, "weight": 700},
+    "h1": {"size": 28, "lineHeight": 34, "minimumSize": 24, "minimumLineHeight": 30, "weight": 700},
+    "h2": {"size": 22, "lineHeight": 28, "minimumSize": 18, "minimumLineHeight": 24, "weight": 700},
+    "body": {"size": 16, "lineHeight": 24, "weight": 400},
+    "secondary": {"size": 14, "lineHeight": 20, "weight": 400},
+    "caption": {"size": 12, "lineHeight": 16, "weight": 400},
+    "chip": {"size": 12, "lineHeight": 14, "weight": 600},
+    "button": {"size": 16, "lineHeight": 20, "weight": 600},
+    "navLabel": {"size": 11, "lineHeight": 14, "weight": 600}
+  }
+}

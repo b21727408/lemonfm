@@ -1,0 +1,28 @@
+name: lemon_workspace
+publish_to: none
+
+environment:
+  sdk: '>=3.13.2 <4.0.0'
+
+workspace:
+  - apps/mobile
+  - apps/moderation
+  - apps/widgetbook
+  - packages/foundation
+  - packages/lemon_lints
+  - packages/lemon_ui
+  - packages/api_client
+  - packages/admin_api_client
+  - packages/telemetry
+  - packages/realtime_client
+  - packages/secure_store
+  - packages/features/identity
+  - packages/features/profile
+  - packages/features/quiz
+  - packages/features/discovery
+  - packages/features/messaging
+  - packages/features/safety
+  - packages/features/commerce
+
+dev_dependencies:
+  flutter_lints: 6.0.0

@@ -1,0 +1,8 @@
+title = "Lemon.fm Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Deterministic generated binding checksums are not credentials."
+paths = ['''^contracts/generated-bindings\.sha256\.json$''']

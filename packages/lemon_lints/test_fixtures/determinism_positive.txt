@@ -1,0 +1,5 @@
+final class Clock {
+  const Clock(this.now);
+
+  final DateTime Function() now;
+}

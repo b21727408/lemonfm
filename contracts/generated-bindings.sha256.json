@@ -1,0 +1,36 @@
+{
+  "algorithm" : "SHA-256",
+  "authoredSources" : {
+    "contracts/fixtures/http/admin-v1.fixture.yaml" : "76b5e5a33fac2980016f15af370526250cec44a269b10a8769511f91c5add668",
+    "contracts/fixtures/http/public-v1.fixture.yaml" : "a998b082badb875ab5f3159cd0f2ce59d7935e32e2f0af089a312527965b3feb",
+    "contracts/http/admin-v1.yaml" : "9f0366f30f294149ccb0de839eb80bf5746ce760df9856259ad825f6e7a71e4e",
+    "contracts/http/public-v1.yaml" : "06c0a5109ebd16b93f89a6080f877c4f8e71f4292841a0935b7c4f164a8463f1"
+  },
+  "generatedOutputs" : {
+    "contracts/fixtures/generated/fixture-contracts.json" : "2b2a3aa45c470d4d678bb9d5235a75ea47fa8ef4caa4cd2338359f0293758079",
+    "packages/admin_api_client/lib/admin_api_client.dart" : "3a6799f189f18cc7e2ce940a486329685215da1be2f8a0ed5cd725a4cda2aab5",
+    "packages/admin_api_client/lib/src/api.dart" : "d27c0cfa6222c47f61569d1badb055818675b5e302aa25e533b4a643e91ff748",
+    "packages/admin_api_client/lib/src/api_util.dart" : "d5fa77612dbe38998323ce154da5b4b6472a5c0e54ede74182bf8eec33451713",
+    "packages/admin_api_client/lib/src/auth/api_key_auth.dart" : "dfd79b20fe6370d4a50154bf886627bbca062768527c8c5b92fa6295ff4377a8",
+    "packages/admin_api_client/lib/src/auth/auth.dart" : "be75950676d4a6cb8b00f49cba5a2ab9fe3becf5114ed8851a8bc503a3e7d8d3",
+    "packages/admin_api_client/lib/src/auth/basic_auth.dart" : "86e4ab7f7e98e5ae42c2a6c966e390b7ca0c77ed4bf66dbfed26ef71761dec02",
+    "packages/admin_api_client/lib/src/auth/bearer_auth.dart" : "a96a403c6f660d371cced0ec5cf7440c46580bb3daf93102715dc486d4622401",
+    "packages/admin_api_client/lib/src/auth/oauth.dart" : "e5e72aceaba1e516ed8b1b06857938073f669f6f6182effe895d08e75be9c6bc",
+    "packages/admin_api_client/lib/src/date_serializer.dart" : "3afdb1e5214f5f89ec7f62cb2cd3b98c14aaad487a2ca3bc4a81a3eda5674e75",
+    "packages/admin_api_client/lib/src/model/date.dart" : "07fc868f46e2d2ae0b6bade2a21c270931e88c0a205fcb0493d0273374294596",
+    "packages/admin_api_client/lib/src/serializers.dart" : "cba809e60d4048df3de462d527068ead1b0804008db93e3d20a45365092d23cd",
+    "packages/admin_api_client/lib/src/serializers.g.dart" : "be85dbd53c7f58d7bce66925300ee2429ec07f73cc30058525333c334e3912e9",
+    "packages/api_client/lib/api_client.dart" : "6d9b0642debcc2e7d2d3657f9d5faad22634a098d050300430c0db68839afe4f",
+    "packages/api_client/lib/src/api.dart" : "1a5a3d1f299c9b4bda135862822c40d1a5a71ca180a2ff494809d7e12e502911",
+    "packages/api_client/lib/src/api_util.dart" : "d5fa77612dbe38998323ce154da5b4b6472a5c0e54ede74182bf8eec33451713",
+    "packages/api_client/lib/src/auth/api_key_auth.dart" : "0b432830040db3e96d3530034fb6fb6532fc10c06e35d8d84f22f569c153c81a",
+    "packages/api_client/lib/src/auth/auth.dart" : "be75950676d4a6cb8b00f49cba5a2ab9fe3becf5114ed8851a8bc503a3e7d8d3",
+    "packages/api_client/lib/src/auth/basic_auth.dart" : "e8e87d646d23474ef71e85a2f1412cf1e9d6b3774af2f0329ff2404f768787ae",
+    "packages/api_client/lib/src/auth/bearer_auth.dart" : "0df4e89007104e26a2c02863288f1506232d71139677c57a9d6da7bd3b2118aa",
+    "packages/api_client/lib/src/auth/oauth.dart" : "8f840b16c6cae5997b2be88c6be6369780a84dc9298eb3a27ba11cec36537c0c",
+    "packages/api_client/lib/src/date_serializer.dart" : "af7b358b1156e6085145883f1f673bcd53df6ee368a8e610f8ab6a565eca2c60",
+    "packages/api_client/lib/src/model/date.dart" : "07fc868f46e2d2ae0b6bade2a21c270931e88c0a205fcb0493d0273374294596",
+    "packages/api_client/lib/src/serializers.dart" : "df3d2f128f288e4271863107faf0c1ab7d6c434fcc66936a6a209ee5e26787fe",
+    "packages/api_client/lib/src/serializers.g.dart" : "be85dbd53c7f58d7bce66925300ee2429ec07f73cc30058525333c334e3912e9"
+  }
+}

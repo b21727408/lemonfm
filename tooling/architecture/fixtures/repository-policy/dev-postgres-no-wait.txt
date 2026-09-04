@@ -1,0 +1,2 @@
+docker compose up --detach postgres
+SPRING_FLYWAY_ENABLED=true ./gradlew :backend:bootRun

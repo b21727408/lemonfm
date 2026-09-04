@@ -1,0 +1,1 @@
+M	backend/src/main/resources/db/migration/V1__create_module_schemas.sql

@@ -1,0 +1,10 @@
+name: secure_store
+description: Platform keystore boundary shell.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: '>=3.13.2 <4.0.0'
+resolution: workspace
+dependencies:
+  foundation:
+    path: ../foundation

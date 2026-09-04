@@ -1,0 +1,40 @@
+name: mobile
+description: Lemon.fm shipped mobile shell.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  foundation:
+    path: ../../packages/foundation
+  lemon_ui:
+    path: ../../packages/lemon_ui
+  telemetry:
+    path: ../../packages/telemetry
+  realtime_client:
+    path: ../../packages/realtime_client
+  secure_store:
+    path: ../../packages/secure_store
+  identity:
+    path: ../../packages/features/identity
+  profile:
+    path: ../../packages/features/profile
+  quiz:
+    path: ../../packages/features/quiz
+  discovery:
+    path: ../../packages/features/discovery
+  messaging:
+    path: ../../packages/features/messaging
+  safety:
+    path: ../../packages/features/safety
+  commerce:
+    path: ../../packages/features/commerce
+
+flutter:
+  uses-material-design: false

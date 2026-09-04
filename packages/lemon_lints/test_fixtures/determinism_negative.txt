@@ -1,0 +1,6 @@
+import 'dart:io';
+import 'dart:math';
+
+final DateTime timestamp = DateTime.now();
+final Random random = Random();
+final String operatingSystem = Platform.operatingSystem;

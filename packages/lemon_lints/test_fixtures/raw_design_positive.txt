@@ -1,0 +1,7 @@
+void fixture() {
+  const LemonColorToken();
+}
+
+final class LemonColorToken {
+  const LemonColorToken();
+}

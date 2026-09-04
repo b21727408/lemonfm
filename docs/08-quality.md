@@ -61,6 +61,12 @@ secret scanning ·
 `architecture/modules.yaml` and the generators that read it · the `AGENTS.md`
 generation mechanism · the `./lemon` command surface.
 
+Phase-zero development infrastructure is PostgreSQL only. WireMock is
+test-local. Object storage, generic concurrency harnesses and runtime
+external-I/O transaction proxies arrive only with behaviour that consumes them;
+the structural `@ExternalIo` rule and real-Postgres test base are established
+now.
+
 Then stop. **Not on day zero:** mutation testing, load testing, benchmarks,
 service objectives, native end-to-end frameworks, additional static analysers
 that overlap what is already there.
@@ -80,7 +86,11 @@ Error Prone for suspicious constructs. NullAway with JSpecify so nullability is
 a compile error rather than a production discovery. **forbidden-apis** for the
 ambient calls an AI reaches for by reflex: `System.out`, `new Date()`,
 `System.currentTimeMillis`, `Math.random`, `Thread.sleep`, default locale,
-default time zone. Each has an injected alternative.
+default time zone. Each has an injected alternative. These Java bans are
+repository-wide quality policy; their signature file is generated from
+`architecture/modules.yaml`. Dart's corresponding ambient-call policy is
+scoped there to feature `domain` and `application` and generated into
+`lemon_lints`.
 
 **One tool, one job.** SpotBugs, PMD and a quality dashboard are deliberately
 absent: they overlap heavily with what is above, and a tool that does not
@@ -95,9 +105,8 @@ Spring build: formatting, static analysis, null checking, architecture tests,
 module verification, jOOQ generation, contract generation, drift detection,
 Testcontainers suites, migration suites, property tests, mutation runs and
 security tasks all have to compose, and expressing that in Maven lifecycle
-phases and executions becomes verbose and cross-wired. This decision is written
-down as an architecture decision record, including why not Maven, so that in six
-months nobody arrives proposing a migration to something simpler.
+phases and executions becomes verbose and cross-wired. The decision and the
+reason not to use Maven are recorded here, where build-quality policy is owned.
 
 Gradle's cost is that build scripts are code, and code is a surface an AI can be
 creative on. That cost is removed by locking the surface rather than by
@@ -120,6 +129,11 @@ plugins {
 Six plugins is the ceiling for now. The "boring infrastructure" rule applies to
 the build system too — no custom task frameworks, no plugin factories.
 
+The included `build-logic` build imports the root
+`gradle/libs.versions.toml` catalog directly. Dependency and tool versions are
+authored there once; convention plugins consume catalog entries rather than
+repeating literals.
+
 Four rules, each enforced:
 
 1. **No version literal in a project build file.** Dependencies come from
@@ -128,16 +142,43 @@ Four rules, each enforced:
 2. **Repositories are declared once, in settings.** A project cannot add one.
 3. **No dynamic versions.** No `+`, no `latest.release`, no snapshots. Builds
    are reproducible or they are not builds.
-4. **Build logic is owned separately.** `build-logic/`, `settings.gradle.kts`
-   and `gradle/` sit behind code ownership, and **a feature task may never
-   change build logic, dependency policy or a quality gate.** A task that needs
-   to change build infrastructure is a build-infrastructure task, and says so.
+4. **Build logic is reviewed separately.** In the single-founder repository,
+   the PR workflow makes changes to build logic, dependency policy and quality
+   enforcement explicit; **a feature task may never change those surfaces.** A
+   task that needs to change build infrastructure is a build-infrastructure
+   task, and its PR title starts with `build:` or `chore(build):`. CI compares
+   the PR diff with the base and rejects an unclassified change to the governed
+   paths before the terminal PR gate.
+
+The mechanical plugin-list gate treats the root aggregator build, convention
+plugin implementations under `build-logic/`, and Flutter-managed Android runner
+builds as explicit build-infrastructure exceptions. Backend and repository
+tooling project build files contain only their `plugins` block.
 
 **Dependency locking and dependency verification are both on**, because they
 answer different questions: locking asks whether today's dependency graph is the
 same as yesterday's; verification asks whether the artefact downloaded is the
 artefact expected. The Gradle wrapper and the Java toolchain are pinned, so a
-build never depends on whatever JDK a machine happens to have.
+build never depends on whatever JDK a machine happens to have. This applies to
+both the backend/tooling Gradle build and Flutter's Android runner: each commits
+strict lock state and checksum verification metadata, and each wrapper
+distribution declares its checksum.
+
+Existing Flyway migration files are append-only. Pull-request comparison with
+the merge base rejects modifications, deletions, renames and type changes;
+adding a new versioned migration remains allowed. Refreshing dependency locks or
+verification metadata is an explicit maintenance/generation action and never a
+side effect of `./lemon check`.
+
+Every committed `gradle-wrapper.jar`, including Flutter's Android wrapper, is
+validated by Gradle's official checksum action before any job executes Gradle.
+
+Android release signing is fail-closed. Debug/profile builds require no release
+credentials, but any release task requires all four Gradle properties or same-
+named environment values: `LEMON_RELEASE_STORE_FILE`,
+`LEMON_RELEASE_STORE_PASSWORD`, `LEMON_RELEASE_KEY_ALIAS` and
+`LEMON_RELEASE_KEY_PASSWORD`. None is committed, and an absent value stops the
+release task before packaging instead of selecting the debug key.
 
 ## Boundaries
 
@@ -153,16 +194,31 @@ and every mechanism follows. The file also records **which mechanism enforces
 which policy**, so a claim in a document can be checked against something that
 exists.
 
-**Spring Modulith** — the module graph: illegal dependencies, cycles, reaching
-past a module's `api` into its internals. `ApplicationModules.verify()` in CI.
+**Spring Modulith plus the generated typed-dependency verifier** — Modulith's
+documented public model supplies discovered modules, exposed interfaces and
+dependency types. Component and ordinary static API dependencies are checked
+against declared `calls`; event-listener dependencies are checked against
+declared `subscribes`. Only the synchronous `calls` graph is acyclic. A
+subscription may point back toward a caller and never grants call permission.
+The repository does not use unqualified `ApplicationModules.verify()` as the
+graph gate because its combined cycle model cannot represent this policy.
+The selected Modulith version's companion `DEFAULT` fact for an event payload is
+treated as subscription coupling only when its source type, target type and
+target module exactly match an `EVENT_LISTENER` fact; structural fixtures prove
+that classification. Other `DEFAULT` facts require call permission.
 
 **ArchUnit** — inside a module: `domain` importing no Spring, no jOOQ, no
 Jackson, no HTTP, no other module; layer direction `infrastructure → application
-→ domain`, and `domain` depending on nothing.
+→ domain`, `domain` depending on nothing, and direct HTTP client namespaces
+owned only by `infrastructure`. The namespace and owner-layer inputs are
+generated from `architecture/modules.yaml`.
 
-**ArchUnit schema ownership** — a module's infrastructure may not reference
-another schema's generated jOOQ types. jOOQ's per-schema packages make a
-cross-schema query *visible*; the rule is what makes it fail.
+**Persistence ownership** — ArchUnit rejects another module's generated jOOQ
+types, and repository policy rejects raw schema-qualified SQL and string-based
+jOOQ identifiers in first-party application sources. Persistence code uses its
+owned generated jOOQ schema and table types. Raw SQL is confined to Flyway
+migrations or a separately approved infrastructure boundary, so replacing a
+generated table reference with `"profile.person"` cannot evade the module gate.
 
 **The pubspec dependency graph, checked against `modules.yaml`** — this is the
 real Flutter boundary. Dart does not hide `lib/src/`; what stops messaging from
@@ -174,8 +230,9 @@ the violation in a diff.
 cannot express. Start with five, because twenty lints written up front is its
 own project:
 
-- Flutter or Riverpod imported inside `domain/`
-- a raw colour, text style, radius, spacing or duration outside `lemon_ui`
+- a feature layer importing a forbidden own layer, workspace package or SDK,
+  including direct `dart:io` outside its declared `data` owner
+- a raw design value or framework visual component outside `lemon_ui`
 - a user-facing string literal in a widget
 - a direct analytics or vendor SDK call from a feature
 - `DateTime.now()`, `Random()` or `Platform.*` in `domain/` or `application/`
@@ -186,7 +243,9 @@ mistake nobody has made costs maintenance and catches nothing.
 
 **Repository-wide scans that fail the build:** the word "match" in any locale
 file (`00` §Vocabulary) · any `PROVISIONAL` marker · any hand-edited generated
-file.
+file. Checksum-pinned Gitleaks owns secret scanning; the repository policy tool
+does not maintain a competing partial secret detector. Checksum-pinned `oasdiff`
+owns OpenAPI breaking-change detection, with Lemon-specific orchestration only.
 
 <!-- agent-law:id=quality.dependency-approval -->
 **A new dependency requires explicit approval** and never arrives inside a
@@ -220,7 +279,7 @@ green suite that proves nothing is to mock everything:
 - **Persistence:** real Postgres, always. Never an in-memory database — it has
   different semantics, and a test that passes against it is a test about the
   wrong database.
-- **Vendors:** WireMock.
+- **Vendors:** an in-process WireMock fixture in the test that needs it.
 - **Module integration:** the real Spring module.
 
 **Property-based testing for policy composition.** An example test checks that a
@@ -229,9 +288,11 @@ sequence of door changes, blocks, declines, cooldowns and subscription changes,
 money never bypasses a block. That is where the invariants in `01` actually
 live, and generated sequences find the ordering nobody thought of.
 
-**Concurrency is tested against a real database.** Two simultaneous sends with
-the same idempotency key must produce exactly one row. That is not provable
-with a mock.
+**Concurrency is tested against a real database when the first concurrent
+behaviour arrives.** Two simultaneous sends with the same idempotency key must
+eventually produce exactly one row. That is not provable with a mock, but a
+generic concurrency framework with no behaviour to consume it proves nothing.
+The day-zero Testcontainers PostgreSQL base is the required foundation.
 
 **Goldens must be deterministic:** real fonts in the harness, pinned surface and
 pixel ratio, animations disabled, fixed locale, generated and verified on one
@@ -249,6 +310,10 @@ both directions.
 - **Both** clients regenerate with no diff — Dart client and Java server
   interfaces. A server implementing a generated interface cannot drift from the
   specification without failing to compile.
+- Separate fixture specifications generate build-local Java and Dart bindings
+  with the same production generator configuration and exercise both surfaces
+  against spec-derived mocks. Fixture operations and controllers never enter a
+  production contract, client package or Spring component scan.
 - Breaking-change detection compares the specification against the main branch
   and fails on a removed field or a narrowed type. "A field disappeared and
   nobody noticed" stops being possible.
@@ -269,6 +334,11 @@ the values are.
 The consequence: a raw colour is not merely discouraged by review, it is a lint
 failure with a generated alternative sitting right there.
 
+Native launch surfaces and the moderation/Widgetbook web shells consume the
+generated `bg0` value too. Their manifests and generated CSS are checked against
+`design/tokens/colors.json`; Flutter template blue and placeholder metadata are
+repository-policy failures.
+
 ## The `PROVISIONAL` protocol
 
 A session that needs a value the documents do not supply has exactly two legal
@@ -280,6 +350,13 @@ the pull request, and builds the rest of the slice. **CI fails on the marker**,
 so this is not a way to defer work — it is a build failure the session declares
 on itself, and only an answer clears it.
 <!-- /agent-law -->
+
+The repository gate scans tracked, authored text across source code, SQL, shell
+scripts, TOML, properties, XML, Swift, Kotlin, Gradle and equivalent configuration
+surfaces. Canonical prose (`docs/` and generated `AGENTS.md`), generated outputs,
+tool caches and binary/archive formats are explicit exclusions: prose must be
+able to describe this protocol, while generated and non-text inputs are governed
+by their own drift or integrity checks.
 
 A plausible invented number is worse than a red build, because it silently
 becomes a decision nobody remembers making.
@@ -344,32 +421,51 @@ worse than having no constitution at all.
 ./lemon dev
 ```
 
+`lemon.cmd` is the Windows entry point and delegates to that same implementation;
+it is not a second command graph.
+
+The complete check regenerates architecture policy, AGENTS, tokens, jOOQ and
+both Java/Dart OpenAPI surfaces in an isolated temporary workspace and compares
+them with the checked-in outputs. It never repairs the working tree, dependency
+locks or verification metadata; stale generation is a failure with
+`./lemon generate` as the explicit maintenance action.
+
 **CI runs the same commands.** A session is told "run `./lemon check`" rather
 than being handed forty tool invocations, and "it passed locally but failed in
 CI" stops being a category of problem.
 
 ## Continuous integration
 
-Layered, so a fast mistake fails fast:
+Layered, so a fast mistake fails fast. Every box is a scope of the same root
+command rather than an independent CI implementation:
 
 ```
-policy checks — generated files current, no PROVISIONAL, no banned words
-      ↓
-fast backend                       fast flutter
-format, static analysis,           format, analysis, lints,
-Modulith, ArchUnit, unit tests     unit and widget tests
-      ↓
-contracts — validate, regenerate both sides, breaking-change diff, schemas
-      ↓
-integration — Testcontainers, module tests, migration replay, WireMock
-      ↓
-build smoke — both platforms
-      ↓
-security — secret scan, dependency audit
+wrapper-validation — every committed Gradle wrapper JAR, before Gradle executes
+   ├── pr-classification — build/governance paths require build PR metadata
+   └── policy — schema first, semantic graph, repository policy
+       ├── backend-fast
+       ├── flutter-fast
+       ├── generated-drift
+       └── repository-security — secrets, locks, verification metadata
+                ↓
+       contracts — authored specs, both generated sides, breaking-change diff
+                ↓
+       postgres-integration — Testcontainers, migration replay, schema ownership
+                ↓
+       build-smoke — declared runtime and Flutter targets
+                ↓
+       final-verification — generate, drift, test, complete local check
+
+pr-classification + final-verification → pr-gate
 ```
+
+The development PostgreSQL service is the only persistent Phase-zero service.
+Its Compose port binds to loopback, `./lemon dev` uses Compose's health-aware
+wait before backend boot, and the Compose tag-plus-digest is also the exact
+image identity used by Testcontainers. Dependabot owns Docker image update PRs.
 
 **Nightly, not per pull request:** mutation testing, full device end-to-end,
-deeper security analysis, dependency audit. Expensive checks on every pull
+deeper security analysis and dependency audit. Expensive checks on every pull
 request are their own kind of bad engineering — they slow the loop and get
 ignored.
 
@@ -442,5 +538,5 @@ a test rather than by being deleted.
 | Browse-only cannot send | `02`, `06` | integration test |
 | No visible quota counter | `06` | contract test: ceilings absent from responses |
 | A cooldown never fakes a successful send | `06` | integration test on the availability gate |
-| A feature slice never alters build logic | `08` | code ownership plus a path check in CI |
+| A feature slice never alters build logic | `08` | PR-title classification plus a base-diff path check in CI |
 | `AGENTS.md` matches its sources | `08` | regenerate and diff |

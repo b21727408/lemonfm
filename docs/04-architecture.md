@@ -139,12 +139,31 @@ sludge.
 
 ### Enforcement
 
-**Spring Modulith** verifies the module graph: illegal dependencies, cycles,
-and reaching past a module's `api` into its internals. `ApplicationModules.verify()`
-runs in CI and fails the build.
+**Spring Modulith** discovers the modules, their exposed interfaces and their
+typed dependencies. A repository verifier built on its documented public API
+then checks those facts against `architecture/modules.yaml`. Component and
+ordinary static API dependencies are synchronous-call edges; event-listener
+dependencies are subscription edges. The synchronous graph must be acyclic.
+The subscription graph is checked independently and may point back toward a
+caller. A subscription is never permission to call the publisher.
+
+The repository deliberately does not use an unqualified
+`ApplicationModules.verify()` as its graph gate. That method treats all module
+dependencies as one cycle graph, which cannot express the distinction above.
+The custom verifier does not filter violation messages or use framework
+internals: it consumes Spring Modulith's public dependency type, source type,
+target type and target-module model.
+
+Spring Modulith reports the event payload type reference as a `DEFAULT`
+dependency beside `EVENT_LISTENER`. The verifier treats that companion fact as
+subscription coupling only when source type, target type and target module are
+identical. Every other `DEFAULT` dependency remains call-capable and requires a
+declared `calls` edge. Focused fixtures pin this classification for the selected
+Modulith version.
 
 **ArchUnit** verifies the inside of a module: `domain` importing no framework,
-layer direction, no cross-module type references.
+layer direction, no cross-module type references, and direct HTTP client
+adapters living only in `infrastructure`.
 
 Both read their rules from `architecture/modules.yaml`. Adding a dependency
 means editing that file, which is a visible decision in a pull request rather
@@ -290,15 +309,25 @@ opens.
 
 **The rule is made structural before it is verified.** An architecture test
 cannot watch for network calls at runtime, so the shape is arranged so the test
-has something to check: every outbound adapter is marked `@ExternalIo`, and a
-transactional application class may not depend on anything carrying that mark.
-External work happens in event listeners, after the commit. The same pattern
+has something to check: every outbound adapter is marked
+`fm.lemon.architecture.ExternalIo`, and a transactional application operation
+may not depend directly or transitively on an API or port carrying that mark.
+Every configured direct-I/O adapter must implement a marked application/API
+capability; marking only the infrastructure implementation is a build failure,
+because callers normally depend on the port and would otherwise bypass the
+transitive rule.
+The marker is capability/interface-scoped, not module-wide. A module may expose
+transaction-safe synchronous APIs beside a separate marked preflight or hosted
+API without making the whole module external. External work happens outside the
+transaction, commonly in an event listener after commit. The same pattern
 applies wherever a guarantee sounds stronger than a tool can deliver — arrange
 the code so the property is structural, then let the tool verify the structure.
 
-`REQUIRES_NEW` and its equivalents require explicit approval. They are how a
-generated implementation quietly creates a second consistency model, and the
-rule exists so that appears in a review rather than in an incident.
+Application and product code may not explicitly introduce `REQUIRES_NEW` or an
+equivalent independent transaction. The one framework-owned exception is the
+transaction semantics Spring Modulith applies through
+`@ApplicationModuleListener`; permitting that annotation does not create a
+general application allowlist.
 
 ### A module's `api` may not leak its insides
 
@@ -348,6 +377,13 @@ The line between synchronous and asynchronous is a rule, not a preference:
 <!-- agent-law:id=arch.sync-vs-event -->
 > **"May this happen?" is a synchronous call. "This happened" is an event.**
 <!-- /agent-law -->
+
+These form two different directed graphs. Only synchronous/component/static API
+calls participate in the acyclic call graph. Event subscriptions are declared
+and verified independently, may point toward a module that calls the subscriber,
+and grant no synchronous permission. Thus `messaging` may synchronously ask
+`safety` for an authoritative decision while `safety` asynchronously consumes a
+`messaging` event without creating a synchronous cycle.
 
 Sending a request checks contact eligibility, the door, the cooldown and the
 quota synchronously, because a wrong answer is a product invariant broken.
@@ -414,6 +450,21 @@ data/           HTTP, cache, DTO mapping
 presentation/   Riverpod controllers, screens, widgets
 ```
 
+Layer direction is explicit. `domain` may use only its own domain code,
+foundation primitives and the Dart SDK. `application` may use its own domain
+and application contracts plus foundation; it does not import Flutter,
+Riverpod, data implementations, presentation, API clients or platform/vendor
+SDKs. `data` implements domain/application ports and may use the feature's
+declared technical packages. `presentation` may use domain/application,
+Riverpod and `lemon_ui`, but never imports `data` implementation details.
+`architecture/modules.yaml` declares the precise import sets consumed by
+`lemon_layer_boundary`.
+
+Direct platform/network I/O follows the same ownership boundary on both sides:
+backend HTTP clients live in `infrastructure`, and feature `dart:io` adapters
+live in `data`. The machine policy names the restricted SDK namespaces and
+imports; value-oriented JDK and Dart libraries remain available to pure code.
+
 **No feature depends on another feature.** They still need to reach each other —
 discovery opens a profile, a profile opens the composer — and `apps/mobile`
 owns that: a feature exposes routes and emits navigation intents, and the shell
@@ -426,7 +477,8 @@ controller lifecycle. A `domain/` file importing Riverpod fails the build.
 forbidden in `domain` and `application`; a `Clock` and an `IdGenerator` are
 injected instead. An AI reaching for the ambient clock is the single most
 common way a test becomes flaky, and the ban makes it impossible rather than
-discouraged.
+discouraged. The identifiers and affected layers are generated into the lint
+policy from `architecture/modules.yaml`.
 
 **Strings through slang.** No user-facing literal in a widget. Adding a locale
 is content work, never code work.
@@ -453,7 +505,7 @@ never appears in any other module.
 
 ## Moderation
 
-`apps/moderation` is an internal console: report queue with severity lanes,
+`apps/moderation` is a web-only internal Flutter console: report queue with severity lanes,
 evidence, enforcement actions, appeals, and an audit history.
 
 It exists from the start, even minimal, because `06` promises human review — and
@@ -477,12 +529,20 @@ lives here.
 Development runs the *dependencies* in containers and the *code* natively:
 
 ```
-docker compose up postgres storage wiremock
 ./lemon dev
 ```
 
 Rebuilding a container on every backend change slows the loop for no benefit. A
-full-stack compose path exists for smoke testing.
+full-stack compose path exists for smoke testing. Object storage arrives with
+the first media behaviour that consumes it. WireMock is created inside tests and
+is not a persistent development service.
+
+`./lemon dev` starts the digest-pinned PostgreSQL service on loopback only,
+waits for its Compose healthcheck, then applies Flyway through an explicit
+development-only override before the application becomes usable. Default
+application configuration keeps Flyway and Spring Modulith schema initialization
+disabled; staging and production retain deployment-step ownership of every
+migration.
 
 Staging and production run the same image with different configuration.
 Migrations run as a **deployment step before rollout**, not on application
@@ -511,3 +571,7 @@ which is the property being bought.
 `fm.lemon` is the Android application id, the iOS bundle id and the Java base
 package. **Irreversible after the first store submission** — changing it later
 means a new listing and losing every install.
+
+The shipped mobile app supports Android API 24 and newer and iOS 15.0 and newer.
+`apps/moderation` has no Android or iOS runner. `apps/widgetbook` is a
+development-only application.

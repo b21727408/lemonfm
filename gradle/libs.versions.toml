@@ -1,0 +1,51 @@
+[versions]
+java = "21"
+spring-boot = "4.1.1"
+spring-modulith = "2.1.1"
+postgresql = "42.7.13"
+flyway = "12.4.0"
+jooq = "3.21.7"
+testcontainers = "2.0.5"
+archunit = "1.4.2"
+error-prone = "2.50.0"
+nullaway = "0.14.1"
+jspecify = "1.0.1"
+checkstyle = "14.1.0"
+google-java-format = "1.36.1"
+jackson = "2.21.5"
+json-schema-validator = "2.0.7"
+openapi-generator = "7.25.0"
+openapi-request-validator = "3.0.0"
+wiremock = "3.13.2"
+spotless-plugin = "8.10.1"
+errorprone-gradle-plugin = "5.1.1"
+forbiddenapis-gradle-plugin = "3.10"
+
+[libraries]
+spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-bom", version.ref = "spring-modulith" }
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+jooq-codegen = { module = "org.jooq:jooq-codegen", version.ref = "jooq" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+error-prone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "error-prone" }
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+checkstyle = { module = "com.puppycrawl.tools:checkstyle", version.ref = "checkstyle" }
+jackson-yaml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", version.ref = "jackson" }
+json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "json-schema-validator" }
+openapi-request-validator-mockmvc = { module = "com.atlassian.oai:openapi-request-validator-mockmvc", version.ref = "openapi-request-validator" }
+wiremock = { module = "org.wiremock:wiremock", version.ref = "wiremock" }
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
+spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless-plugin" }
+errorprone-gradle-plugin = { module = "net.ltgt.gradle:gradle-errorprone-plugin", version.ref = "errorprone-gradle-plugin" }
+forbiddenapis-gradle-plugin = { module = "de.thetaphi:forbiddenapis", version.ref = "forbiddenapis-gradle-plugin" }
+openapi-generator-gradle-plugin = { module = "org.openapi.generator:org.openapi.generator.gradle.plugin", version.ref = "openapi-generator" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }

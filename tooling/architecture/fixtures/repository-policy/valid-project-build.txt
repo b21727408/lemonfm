@@ -1,0 +1,4 @@
+plugins {
+    id("lemon.java")
+    id("lemon.quality")
+}

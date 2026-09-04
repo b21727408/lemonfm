@@ -3,9 +3,8 @@
 # The single definition of every boundary in this system, expressed so a
 # generator can read it rather than so a human can admire it.
 #
-# Generates:  Spring Modulith configuration · ArchUnit rules · lemon_lints
-#             package rules · the pubspec dependency check · the tables in
-#             docs/04-architecture.md · the architecture diagram
+# Generates:  backend policy inputs and module shells · lemon_lints package
+#             rules · the pubspec dependency graph · deterministic policy data
 #
 # This file validates against architecture/modules.schema.json before anything
 # is generated from it. An unknown field is a build failure — a typo in a
@@ -21,7 +20,7 @@ version: 1
 policies:
 
   graph:
-    cycles: forbidden
+    synchronous_call_cycles: forbidden
     undeclared_dependencies: forbidden
 
   cross_module:
@@ -33,6 +32,18 @@ policies:
     api_signatures:
       may_expose: [api_types, jdk_types, foundation_types]
       may_not_expose: [domain, application, infrastructure, jooq_generated]
+      own_api_category: api_types
+      namespace_categories:
+        jdk_types: [java.]
+        foundation_types: [fm.lemon.foundation.]
+        jooq_generated: [fm.lemon.generated.jooq.]
+      annotation_only_types:
+        - fm.lemon.architecture.ExternalIo
+        - org.jspecify.annotations.NonNull
+        - org.jspecify.annotations.Nullable
+        - org.jspecify.annotations.NullMarked
+        - org.jspecify.annotations.NullUnmarked
+        - org.springframework.modulith.NamedInterface
 
   persistence:
     ownership: schema_per_module
@@ -52,28 +63,88 @@ policies:
         - package:flutter_riverpod
         - package:riverpod
         - package:dio
-    forbidden_calls:
-      dart: ["DateTime.now", "Random", "Platform"]
-      java: ["System.currentTimeMillis", "java.util.Date", "Math.random"]
+
+  # Ambient APIs are quality policy, with their actual enforcement scope made
+  # explicit. Java forbidden-apis applies repository-wide; the Dart rule is a
+  # pure-layer rule and therefore applies only to domain and application.
+  ambient_calls:
+    java:
+      scope: repository_wide
+      forbidden_api_signatures:
+        - "java.lang.System#out"
+        - "java.lang.System#currentTimeMillis()"
+        - "java.lang.Math#random()"
+        - "java.lang.Thread#sleep(long)"
+        - "java.util.Date#<init>()"
+        - "java.util.Locale#getDefault()"
+        - "java.util.TimeZone#getDefault()"
+    dart:
+      layers: [domain, application]
+      forbidden_identifiers: [DateTime.now, Random, Platform]
+
+  # Direct HTTP/platform I/O is an adapter responsibility. Value-oriented
+  # JDK/Dart libraries remain legal; only the direct adapter surfaces named
+  # here are restricted to their owning layer.
+  direct_io:
+    java:
+      owner_layers: [infrastructure]
+      forbidden_namespaces:
+        - java.net.http.
+        - org.springframework.http.client.
+        - org.springframework.web.client.
+        - org.springframework.web.reactive.function.client.
+    dart:
+      owner_layers: [data]
+      forbidden_imports: [dart:io]
 
   layers:
     # api is not part of the chain. It is a self-standing contract surface, so
     # a caller compiling against it is not compiled against anything behind it.
     order: [infrastructure, application, domain]   # each may depend rightward only
     domain_depends_on: []
-    api_may_depend_on: [jdk, foundation, own_api_types]
-    api_may_not_depend_on: [domain, application, infrastructure]
+    api_may_depend_on: [api_types, jdk_types, foundation_types]
+    api_may_not_depend_on: [domain, application, infrastructure, jooq_generated]
     api_implemented_by: application
+
+  flutter_layers:
+    # Workspace-package permission and layer permission are both required. A
+    # feature declaring api_client does not make it legal from presentation.
+    domain:
+      may_import_own_layers: [domain]
+      may_import_workspace_packages: [foundation]
+      may_import_external_packages: []
+    application:
+      may_import_own_layers: [domain, application]
+      may_import_workspace_packages: [foundation]
+      may_import_external_packages: []
+    data:
+      may_import_own_layers: [domain, application, data]
+      may_import_workspace_packages: [foundation, api_client, telemetry, realtime_client, secure_store]
+      may_import_external_packages: []
+    presentation:
+      may_import_own_layers: [domain, application, presentation]
+      may_import_workspace_packages: [foundation, lemon_ui, telemetry]
+      may_import_external_packages: [flutter, flutter_riverpod, riverpod]
+    appearance:
+      owner: lemon_ui
+      forbidden_feature_imports:
+        - package:flutter/material.dart
+        - package:flutter/cupertino.dart
 
   transactions:
     owner: outermost_application_operation
     synchronous_module_calls: join_caller_transaction
     external_io_inside_transaction: forbidden      # no vendor HTTP, no SMS, no push
-    requires_new: approval_required
+    external_io_marker: fm.lemon.architecture.ExternalIo
+    external_io_scope: capability
+    requires_new:
+      application_code: forbidden
+      framework_exceptions: [spring_modulith_application_module_listener]
 
   events:
     delivery: in_process_durable
     guarantee: at_least_once      # never exactly-once; handlers must be idempotent
+    handler_idempotency: required
     payloads_may_expose: [api_types, jdk_types]
     required_fields: [eventId, aggregateId, aggregateVersion, occurredAt]
     ordering: monotonic_per_aggregate   # a projection never applies N after N+1
@@ -87,19 +158,22 @@ policies:
 # How each policy is actually enforced. Named here so a claim in a document can
 # be checked against a mechanism that exists.
 enforcement:
-  graph.cycles: [spring_modulith]
-  graph.undeclared_dependencies: [spring_modulith, pubspec_graph_check, lemon_lints]
-  cross_module.calls: [spring_modulith, lemon_lints, pubspec_graph_check]
-  cross_module.subscriptions: [spring_modulith]
+  graph.synchronous_call_cycles: [generated_call_graph_check]
+  graph.undeclared_dependencies: [spring_modulith_typed_dependencies, pubspec_graph_check, lemon_lints]
+  cross_module.calls: [spring_modulith_typed_dependencies, lemon_lints, pubspec_graph_check]
+  cross_module.subscriptions: [spring_modulith_typed_dependencies]
   cross_module.api_signatures: [archunit]
-  persistence.cross_schema_access: [archunit]
+  persistence.cross_schema_access: [archunit, repository_sql_boundary]
   domain_layer.forbidden_namespaces: [archunit, lemon_lints]
-  domain_layer.forbidden_calls: [lemon_lints, forbidden_apis]
+  ambient_calls: [lemon_lints, forbidden_apis]
+  direct_io: [archunit, lemon_lints]
   layers.order: [archunit]
-  transactions.external_io: [archunit_external_io_marker]
-  transactions.requires_new: [archunit]
+  flutter_layers.imports: [lemon_lints]
+  flutter_layers.appearance: [lemon_lints]
+  transactions.external_io_inside_transaction: [archunit_external_io_marker]
+  transactions.requires_new.application_code: [archunit]
   events.no_orphan: [generator_check]
-  events.handler_idempotent: [review, integration_test]
+  events.handler_idempotency: [review, integration_test]
 
 # ---------------------------------------------------------------------------
 # Backend — Spring Modulith application modules under fm.lemon
@@ -162,7 +236,7 @@ backend:
       three seconds late would put an excluded profile back in the feed, which
       would put eventual consistency inside a product invariant. So the
       projection carries ranking material — proximity, freshness, fatigue,
-      boost state, capacity pressure — and `safety.api.filterEligible(viewer,
+      boost state, capacity pressure — and `safety.api.filterDiscoverable(viewer,
       candidateIds)` is called once, synchronously, with the whole candidate
       batch before ranking. One call, authoritative, not fifty.
 
@@ -193,11 +267,11 @@ backend:
       identity: [AccountDeleted]
     publishes: [InboundRequestStateChanged, MessageSent]
     notes: >
-      Calls commerce because it is the only module that can compose the
-      effective ceiling. Safety must not see who paid, so safety returns a
-      safety cap and commerce returns a plan allowance, and messaging takes the
-      minimum (docs/06 §Quotas). Neither module alone can compute it, and that
-      is deliberate.
+      Calls commerce for the plan allowance. Safety must not see who paid, so
+      safety supplies safety restrictions, commerce supplies the plan
+      allowance, and messaging composes the effective ceiling by taking the
+      minimum (docs/06 §Quotas). Neither supplying module alone can compute it,
+      and that is deliberate.
 
       Calls profile and quiz to resolve an anchor. A client sends a reference;
       messaging verifies it exists and belongs to the receiver, then stores a

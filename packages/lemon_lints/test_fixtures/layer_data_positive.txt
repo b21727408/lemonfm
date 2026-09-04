@@ -1,0 +1,6 @@
+import 'package:api_client/api_client.dart';
+
+import '../application/use_case.dart';
+import '../domain/model.dart';
+
+void fixture() {}

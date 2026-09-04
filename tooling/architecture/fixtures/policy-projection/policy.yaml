@@ -1,0 +1,13 @@
+policies:
+  ambient_calls:
+    java:
+      forbidden_api_signatures:
+        - "example.Random#next()"
+        - "example.Clock#now()"
+    dart:
+      layers: [domain, application]
+      forbidden_identifiers: [ExampleRandom, Example.now]
+  direct_io:
+    dart:
+      owner_layers: [data]
+      forbidden_imports: [dart:example_io]

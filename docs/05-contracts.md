@@ -34,6 +34,12 @@ GENERATED — never edited, regenerated on every change
   typed analytics and config accessors
 ```
 
+Generator and round-trip proof uses separate authored specifications under
+`contracts/fixtures/http/`. Their Java and Dart bindings exist only in test
+build directories, and their controllers exist only in backend test source.
+Fixture operations never enter either production specification, production
+Spring component scanning, or the two production client packages.
+
 <!-- agent-law:id=contracts.authored-vs-generated -->
 Contracts are authored. **Bindings** are generated. Editing a generated file is
 a build failure; editing a contract is a reviewed decision.
@@ -229,8 +235,8 @@ key is present is a feature that breaks the first time the endpoint is slow.
 
 - The specification is valid.
 - Regenerating the client produces no diff.
-- The generated client round-trips against a mock server built from the same
-  specification.
+- Test-only clients generated with the production generator configuration
+  round-trip against a mock server derived from their fixture specification.
 - Backend responses validate against the specification.
 - Every content file validates against its schema.
 

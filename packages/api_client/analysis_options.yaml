@@ -1,0 +1,7 @@
+analyzer:
+  errors:
+    unused_import: ignore
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true

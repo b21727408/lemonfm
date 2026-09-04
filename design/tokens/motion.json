@@ -1,0 +1,20 @@
+{
+  "durationMs": {
+    "micro": 120,
+    "standard": 200,
+    "emphasized": 320,
+    "page": 240,
+    "celebration": 600
+  },
+  "curve": {
+    "micro": "easeOutCubic",
+    "standard": "easeOutCubic",
+    "emphasized": "easeOutBack",
+    "page": "easeInOutCubic"
+  },
+  "celebrationSpring": {
+    "mass": 1,
+    "stiffness": 180,
+    "damping": 14
+  }
+}

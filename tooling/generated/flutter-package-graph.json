@@ -1,0 +1,74 @@
+{
+  "apps/mobile" : {
+    "kind" : "apps",
+    "dependencies" : [ "commerce", "discovery", "foundation", "identity", "lemon_ui", "messaging", "profile", "quiz", "realtime_client", "safety", "secure_store", "telemetry" ]
+  },
+  "apps/moderation" : {
+    "kind" : "apps",
+    "dependencies" : [ "admin_api_client", "foundation", "lemon_ui" ]
+  },
+  "apps/widgetbook" : {
+    "kind" : "apps",
+    "dependencies" : [ "lemon_ui" ]
+  },
+  "packages/admin_api_client" : {
+    "kind" : "packages",
+    "dependencies" : [ "foundation" ]
+  },
+  "packages/api_client" : {
+    "kind" : "packages",
+    "dependencies" : [ "foundation" ]
+  },
+  "packages/features/commerce" : {
+    "kind" : "features",
+    "dependencies" : [ "api_client", "foundation", "lemon_ui", "telemetry" ]
+  },
+  "packages/features/discovery" : {
+    "kind" : "features",
+    "dependencies" : [ "api_client", "foundation", "lemon_ui", "telemetry" ]
+  },
+  "packages/features/identity" : {
+    "kind" : "features",
+    "dependencies" : [ "api_client", "foundation", "lemon_ui", "secure_store", "telemetry" ]
+  },
+  "packages/features/messaging" : {
+    "kind" : "features",
+    "dependencies" : [ "api_client", "foundation", "lemon_ui", "realtime_client", "telemetry" ]
+  },
+  "packages/features/profile" : {
+    "kind" : "features",
+    "dependencies" : [ "api_client", "foundation", "lemon_ui", "telemetry" ]
+  },
+  "packages/features/quiz" : {
+    "kind" : "features",
+    "dependencies" : [ "api_client", "foundation", "lemon_ui", "telemetry" ]
+  },
+  "packages/features/safety" : {
+    "kind" : "features",
+    "dependencies" : [ "api_client", "foundation", "lemon_ui", "telemetry" ]
+  },
+  "packages/foundation" : {
+    "kind" : "packages",
+    "dependencies" : [ ]
+  },
+  "packages/lemon_lints" : {
+    "kind" : "packages",
+    "dependencies" : [ ]
+  },
+  "packages/lemon_ui" : {
+    "kind" : "packages",
+    "dependencies" : [ "foundation" ]
+  },
+  "packages/realtime_client" : {
+    "kind" : "packages",
+    "dependencies" : [ "foundation" ]
+  },
+  "packages/secure_store" : {
+    "kind" : "packages",
+    "dependencies" : [ "foundation" ]
+  },
+  "packages/telemetry" : {
+    "kind" : "packages",
+    "dependencies" : [ "foundation" ]
+  }
+}

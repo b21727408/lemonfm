@@ -1,0 +1,18 @@
+name: profile
+description: Profile feature shell.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: '>=3.13.2 <4.0.0'
+resolution: workspace
+dependencies:
+  flutter:
+    sdk: flutter
+  api_client:
+    path: ../../api_client
+  foundation:
+    path: ../../foundation
+  lemon_ui:
+    path: ../../lemon_ui
+  telemetry:
+    path: ../../telemetry

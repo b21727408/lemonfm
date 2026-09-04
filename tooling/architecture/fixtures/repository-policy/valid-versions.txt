@@ -1,0 +1,9 @@
+[versions]
+spring-boot = "4.0.3"
+nullaway = "0.14.1"
+libraryVersion=3.2.1
+distributionUrl=https\://services.gradle.org/distributions/gradle-9.7.1-bin.zip
+
+dependencies {
+    implementation("com.example:library:1.2.3")
+}

@@ -1,0 +1,17 @@
+name: lemon_ui
+description: Lemon.fm design-token and UI boundary.
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: '>=3.13.2 <4.0.0'
+resolution: workspace
+dependencies:
+  flutter:
+    sdk: flutter
+  foundation:
+    path: ../foundation
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: false

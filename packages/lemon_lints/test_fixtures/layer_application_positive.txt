@@ -1,0 +1,5 @@
+import 'package:foundation/foundation.dart';
+
+import '../domain/model.dart';
+
+void fixture() {}

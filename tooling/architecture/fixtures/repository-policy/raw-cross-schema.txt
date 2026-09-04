@@ -1,0 +1,3 @@
+final class InvalidPersistence {
+  static final String QUERY = "select person_id from profile.person";
+}

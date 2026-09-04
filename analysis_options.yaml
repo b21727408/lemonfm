@@ -1,0 +1,15 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - backend/**
+    - build/**
+    - packages/lemon_lints/test_fixtures/**
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+plugins:
+  lemon_lints:
+    path: packages/lemon_lints

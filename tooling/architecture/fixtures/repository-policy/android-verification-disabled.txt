@@ -1,0 +1,5 @@
+<verification-metadata>
+  <configuration>
+    <verify-metadata>false</verify-metadata>
+  </configuration>
+</verification-metadata>
