@@ -1,8 +1,13 @@
+import org.gradle.api.artifacts.VersionCatalogsExtension
+
 plugins {
     application
     java
     id("com.diffplug.spotless")
 }
+
+val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
+val javaVersion = catalog.findVersion("java").get().requiredVersion.toInt()
 
 application {
     mainClass = "fm.lemon.tooling.architecture.ArchitectureTool"
@@ -10,20 +15,20 @@ application {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(javaVersion)
     }
 }
 
 spotless {
     java {
         target("src/main/java/**/*.java")
-        googleJavaFormat("1.36.1")
+        googleJavaFormat(catalog.findVersion("google-java-format").get().requiredVersion)
         formatAnnotations()
     }
 }
 
 dependencies {
-    implementation(enforcedPlatform("com.fasterxml.jackson:jackson-bom:2.21.5"))
-    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.5")
-    implementation("com.networknt:json-schema-validator:2.0.7")
+    implementation(enforcedPlatform(catalog.findLibrary("jackson-bom").get()))
+    implementation(catalog.findLibrary("jackson-yaml").get())
+    implementation(catalog.findLibrary("json-schema-validator").get())
 }

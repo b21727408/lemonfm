@@ -1,0 +1,9 @@
+/* GENERATED FILE — DO NOT EDIT. Generated from design/tokens/colors.json. */
+:root {
+  --lemon-bg0: #050613;
+}
+
+html,
+body {
+  background-color: var(--lemon-bg0);
+}

@@ -129,6 +129,11 @@ plugins {
 Six plugins is the ceiling for now. The "boring infrastructure" rule applies to
 the build system too — no custom task frameworks, no plugin factories.
 
+The included `build-logic` build imports the root
+`gradle/libs.versions.toml` catalog directly. Dependency and tool versions are
+authored there once; convention plugins consume catalog entries rather than
+repeating literals.
+
 Four rules, each enforced:
 
 1. **No version literal in a project build file.** Dependencies come from
@@ -138,10 +143,12 @@ Four rules, each enforced:
 3. **No dynamic versions.** No `+`, no `latest.release`, no snapshots. Builds
    are reproducible or they are not builds.
 4. **Build logic is reviewed separately.** In the single-founder repository,
-   the protected-PR workflow makes changes to `build-logic/`,
-   `settings.gradle.kts` and `gradle/` explicit; **a feature task may never
-   change build logic, dependency policy or a quality gate.** A task that needs
-   to change build infrastructure is a build-infrastructure task, and says so.
+   the PR workflow makes changes to build logic, dependency policy and quality
+   enforcement explicit; **a feature task may never change those surfaces.** A
+   task that needs to change build infrastructure is a build-infrastructure
+   task, and its PR title starts with `build:` or `chore(build):`. CI compares
+   the PR diff with the base and rejects an unclassified change to the governed
+   paths before the terminal PR gate.
 
 The mechanical plugin-list gate treats the root aggregator build, convention
 plugin implementations under `build-logic/`, and Flutter-managed Android runner
@@ -162,6 +169,16 @@ the merge base rejects modifications, deletions, renames and type changes;
 adding a new versioned migration remains allowed. Refreshing dependency locks or
 verification metadata is an explicit maintenance/generation action and never a
 side effect of `./lemon check`.
+
+Every committed `gradle-wrapper.jar`, including Flutter's Android wrapper, is
+validated by Gradle's official checksum action before any job executes Gradle.
+
+Android release signing is fail-closed. Debug/profile builds require no release
+credentials, but any release task requires all four Gradle properties or same-
+named environment values: `LEMON_RELEASE_STORE_FILE`,
+`LEMON_RELEASE_STORE_PASSWORD`, `LEMON_RELEASE_KEY_ALIAS` and
+`LEMON_RELEASE_KEY_PASSWORD`. None is committed, and an absent value stops the
+release task before packaging instead of selecting the debug key.
 
 ## Boundaries
 
@@ -317,6 +334,11 @@ the values are.
 The consequence: a raw colour is not merely discouraged by review, it is a lint
 failure with a generated alternative sitting right there.
 
+Native launch surfaces and the moderation/Widgetbook web shells consume the
+generated `bg0` value too. Their manifests and generated CSS are checked against
+`design/tokens/colors.json`; Flutter template blue and placeholder metadata are
+repository-policy failures.
+
 ## The `PROVISIONAL` protocol
 
 A session that needs a value the documents do not supply has exactly two legal
@@ -418,22 +440,29 @@ Layered, so a fast mistake fails fast. Every box is a scope of the same root
 command rather than an independent CI implementation:
 
 ```
-policy — schema first, semantic graph, repository policy
-   ├── backend-fast
-   ├── flutter-fast
-   ├── generated-drift
-   └── repository-security — secrets, locks, verification metadata
-            ↓
-contracts — authored specs, both generated sides, breaking-change diff
-            ↓
-postgres-integration — Testcontainers, migration replay, schema ownership
-            ↓
-build-smoke — declared runtime and Flutter targets
-            ↓
-final-verification — generate, drift, test, complete local check
-            ↓
-pr-gate
+wrapper-validation — every committed Gradle wrapper JAR, before Gradle executes
+   ├── pr-classification — build/governance paths require build PR metadata
+   └── policy — schema first, semantic graph, repository policy
+       ├── backend-fast
+       ├── flutter-fast
+       ├── generated-drift
+       └── repository-security — secrets, locks, verification metadata
+                ↓
+       contracts — authored specs, both generated sides, breaking-change diff
+                ↓
+       postgres-integration — Testcontainers, migration replay, schema ownership
+                ↓
+       build-smoke — declared runtime and Flutter targets
+                ↓
+       final-verification — generate, drift, test, complete local check
+
+pr-classification + final-verification → pr-gate
 ```
+
+The development PostgreSQL service is the only persistent Phase-zero service.
+Its Compose port binds to loopback, `./lemon dev` uses Compose's health-aware
+wait before backend boot, and the Compose tag-plus-digest is also the exact
+image identity used by Testcontainers. Dependabot owns Docker image update PRs.
 
 **Nightly, not per pull request:** mutation testing, full device end-to-end,
 deeper security analysis and dependency audit. Expensive checks on every pull
@@ -509,5 +538,5 @@ a test rather than by being deleted.
 | Browse-only cannot send | `02`, `06` | integration test |
 | No visible quota counter | `06` | contract test: ceilings absent from responses |
 | A cooldown never fakes a successful send | `06` | integration test on the availability gate |
-| A feature slice never alters build logic | `08` | protected-PR review plus a path check in CI |
+| A feature slice never alters build logic | `08` | PR-title classification plus a base-diff path check in CI |
 | `AGENTS.md` matches its sources | `08` | regenerate and diff |

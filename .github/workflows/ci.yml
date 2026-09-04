@@ -18,8 +18,32 @@ env:
   FLUTTER_MACOS_SHA256: b6fd6ba98c8503d5ee06a6670627b5b1c36167ece3427435ec83b66e9b28c6b5
 
 jobs:
+  wrapper-validation:
+    name: Gradle wrapper validation
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: gradle/actions/wrapper-validation@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          min-wrapper-count: 2
+
+  pr-classification:
+    name: PR build-infrastructure classification
+    if: github.event_name == 'pull_request'
+    needs: wrapper-validation
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - run: ./lemon check --scope pr-classification
+        env:
+          LEMON_PR_TITLE: ${{ github.event.pull_request.title }}
+          LEMON_PR_BASE_REF: origin/${{ github.base_ref }}
+
   policy:
     name: Policy / schema first
+    needs: wrapper-validation
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -187,11 +211,16 @@ jobs:
 
   pr-gate:
     name: PR gate
-    if: always()
-    needs: final-verification
+    if: github.event_name == 'pull_request' && always()
+    needs: [wrapper-validation, pr-classification, final-verification]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every preceding job
         env:
-          RESULT: ${{ needs.final-verification.result }}
-        run: test "$RESULT" = success
+          WRAPPER_RESULT: ${{ needs.wrapper-validation.result }}
+          CLASSIFICATION_RESULT: ${{ needs.pr-classification.result }}
+          FINAL_RESULT: ${{ needs.final-verification.result }}
+        run: |
+          test "$WRAPPER_RESULT" = success
+          test "$CLASSIFICATION_RESULT" = success
+          test "$FINAL_RESULT" = success

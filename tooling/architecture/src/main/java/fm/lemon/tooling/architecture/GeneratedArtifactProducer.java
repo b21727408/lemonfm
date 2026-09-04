@@ -102,6 +102,20 @@ final class GeneratedArtifactProducer {
     outputs.put(
         Path.of("apps/mobile/ios/Runner/Assets.xcassets/LemonBg0.colorset/Contents.json"),
         designTokens.generateIosGroundColor());
+    outputs.put(
+        Path.of("apps/moderation/web/lemon_generated_colors.css"),
+        designTokens.generateWebGroundCss());
+    outputs.put(
+        Path.of("apps/moderation/web/manifest.json"),
+        designTokens.generateWebManifest(
+            "Lemon.fm Moderation", "Moderation", "Internal Lemon.fm moderation application."));
+    outputs.put(
+        Path.of("apps/widgetbook/web/lemon_generated_colors.css"),
+        designTokens.generateWebGroundCss());
+    outputs.put(
+        Path.of("apps/widgetbook/web/manifest.json"),
+        designTokens.generateWebManifest(
+            "Lemon.fm Widgetbook", "Widgetbook", "Development catalog for Lemon.fm UI."));
     outputs.put(Path.of("contracts/fixtures/generated/fixture-contracts.json"), contractFixtures());
     addBackendShells(outputs);
     outputs.put(Path.of("AGENTS.md"), new AgentsGenerator(root).generate());

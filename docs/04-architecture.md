@@ -529,7 +529,6 @@ lives here.
 Development runs the *dependencies* in containers and the *code* natively:
 
 ```
-docker compose up postgres
 ./lemon dev
 ```
 
@@ -538,10 +537,12 @@ full-stack compose path exists for smoke testing. Object storage arrives with
 the first media behaviour that consumes it. WireMock is created inside tests and
 is not a persistent development service.
 
-`./lemon dev` applies Flyway through an explicit development-only override
-before the application becomes usable. Default application configuration keeps
-Flyway and Spring Modulith schema initialization disabled; staging and
-production retain deployment-step ownership of every migration.
+`./lemon dev` starts the digest-pinned PostgreSQL service on loopback only,
+waits for its Compose healthcheck, then applies Flyway through an explicit
+development-only override before the application becomes usable. Default
+application configuration keeps Flyway and Spring Modulith schema initialization
+disabled; staging and production retain deployment-step ownership of every
+migration.
 
 Staging and production run the same image with different configuration.
 Migrations run as a **deployment step before rollout**, not on application

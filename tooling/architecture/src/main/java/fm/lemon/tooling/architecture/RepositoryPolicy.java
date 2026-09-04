@@ -22,6 +22,12 @@ final class RepositoryPolicy {
   private static final Pattern VERSIONED_DEPENDENCY =
       Pattern.compile(
           "(?:implementation|api|compileOnly|runtimeOnly|testImplementation|testRuntimeOnly)\\s*\\(\\s*\"[^\"]+:[^\"]+:[^\"]+\"");
+  private static final Pattern BUILD_LOGIC_VERSIONED_DEPENDENCY =
+      Pattern.compile(
+          "(?:implementation|api|compileOnly|runtimeOnly|testImplementation|testRuntimeOnly|testCompileOnly|checkstyle|errorprone)\\s*\\(\\s*(?:(?:enforcedPlatform|platform)\\s*\\(\\s*)?\"[^\"]+:[^\"]+:[^\"]+\"");
+  private static final Pattern BUILD_LOGIC_TOOL_VERSION =
+      Pattern.compile(
+          "googleJavaFormat\\s*\\(\\s*\"[^\"]+\"|toolVersion\\s*=\\s*\"[^\"]+\"|JavaLanguageVersion\\.of\\(\\d+\\)|options\\.release\\s*=\\s*\\d+");
   private static final Pattern PLUGIN_LINE = Pattern.compile("id\\(\"[A-Za-z0-9_.-]+\"\\)");
   private static final Pattern JAVA_LITERAL =
       Pattern.compile("\"\"\"(.*?)\"\"\"|\"(?:\\\\.|[^\"\\\\])*\"", Pattern.DOTALL);
@@ -32,6 +38,10 @@ final class RepositoryPolicy {
       Pattern.compile("(?i)(?:latest\\.(?:release|integration)|[^:]*\\+|[^:]*snapshot[^:]*)");
   private static final Pattern GRADLE_PROPERTY =
       Pattern.compile("(?m)^\\s*([^#\\s][^=]*)=(.*?)\\s*$");
+  private static final Pattern DIGEST_PINNED_POSTGRES =
+      Pattern.compile("(?m)^\\s*image:\\s*postgres:[^\\s@]+@sha256:[0-9a-f]{64}\\s*$");
+  private static final Pattern PINNED_WRAPPER_VALIDATION_ACTION =
+      Pattern.compile("uses:\\s*gradle/actions/wrapper-validation@[0-9a-f]{40}");
 
   private final Path root;
   private final Set<String> schemas;
@@ -51,6 +61,11 @@ final class RepositoryPolicy {
     checkNativeLaunchSurface(violations);
     checkAndroidWrapper(violations);
     checkAndroidDependencyIntegrity(violations);
+    checkBuildLogicCatalogImport(violations);
+    checkWrapperValidationWorkflow(violations);
+    checkDevelopmentPostgres(violations);
+    checkAndroidReleaseSigning(violations);
+    checkWebShellSurfaces(violations);
     try (Stream<Path> paths = Files.walk(root)) {
       paths
           .filter(Files::isRegularFile)
@@ -74,6 +89,12 @@ final class RepositoryPolicy {
                     String dynamicVersion = dynamicVersionViolation(source);
                     if (dynamicVersion != null) {
                       violations.add(relative + ": " + dynamicVersion);
+                    }
+                  }
+                  if (relative.startsWith("build-logic/") && relative.endsWith(".gradle.kts")) {
+                    String catalogViolation = buildLogicCatalogViolation(source);
+                    if (catalogViolation != null) {
+                      violations.add(relative + ": " + catalogViolation);
                     }
                   }
                   if (relative.startsWith("backend/src/main/java/") && relative.endsWith(".java")) {
@@ -180,6 +201,35 @@ final class RepositoryPolicy {
             "lockAllConfigurations()\nLockMode.STRICT",
             Files.readString(fixtures.resolve("android-verification-disabled.txt"))),
         "Android dependency verification");
+    expectViolation(
+        buildLogicCatalogViolation(Files.readString(fixtures.resolve("catalog-owned-version.txt"))),
+        "catalog-owned build-logic version");
+    expectViolation(
+        wrapperValidationWorkflowViolation(
+            Files.readString(fixtures.resolve("unpinned-wrapper-action.txt"))),
+        "unpinned Gradle wrapper validation action");
+    String validCompose =
+        "image: postgres:18.6@sha256:" + "0".repeat(64) + "\nports:\n  - \"127.0.0.1:5432:5432\"\n";
+    String validDev = "docker compose up --detach --wait postgres";
+    expectViolation(
+        developmentPostgresViolation(
+            Files.readString(fixtures.resolve("dev-postgres-mutable-image.txt")), validDev),
+        "mutable development PostgreSQL image");
+    expectViolation(
+        developmentPostgresViolation(
+            Files.readString(fixtures.resolve("dev-postgres-exposed-port.txt")), validDev),
+        "exposed development PostgreSQL port");
+    expectViolation(
+        developmentPostgresViolation(
+            validCompose, Files.readString(fixtures.resolve("dev-postgres-no-wait.txt"))),
+        "development PostgreSQL health wait");
+    expectViolation(
+        androidReleaseSigningViolation(
+            Files.readString(fixtures.resolve("debug-release-signing.txt"))),
+        "debug release-signing fallback");
+    String invalidWeb = Files.readString(fixtures.resolve("invalid-web-shell.txt"));
+    expectViolation(
+        webShellViolation(invalidWeb, invalidWeb, invalidWeb, "#050613"), "raw Flutter web shell");
     String invalidVersions = Files.readString(fixtures.resolve("invalid-dynamic-version.txt"));
     for (String declaration : invalidVersions.split("\\R")) {
       if (!declaration.isBlank() && !declaration.startsWith("[")) {
@@ -193,6 +243,11 @@ final class RepositoryPolicy {
     }
     if (dynamicVersionViolation(Files.readString(fixtures.resolve("valid-versions.txt"))) != null) {
       fail("Repository policy valid Gradle versions fixture was rejected");
+    }
+    if (buildLogicCatalogViolation(
+            Files.readString(fixtures.resolve("catalog-derived-version.txt")))
+        != null) {
+      fail("Repository policy catalog-derived build-logic fixture was rejected");
     }
     if (provisionalViolation("docs/example.md", "PROVISION" + "AL") != null) {
       fail("Canonical documentation provisional-marker exclusion was rejected");
@@ -327,6 +382,66 @@ final class RepositoryPolicy {
     }
   }
 
+  private void checkBuildLogicCatalogImport(List<String> violations) throws IOException {
+    String relative = "build-logic/settings.gradle.kts";
+    String source = Files.readString(root.resolve(relative), StandardCharsets.UTF_8);
+    if (!source.contains("from(files(\"../gradle/libs.versions.toml\"))")) {
+      violations.add(relative + ": included build must import the root version catalog");
+    }
+  }
+
+  private void checkWrapperValidationWorkflow(List<String> violations) throws IOException {
+    String relative = ".github/workflows/ci.yml";
+    String violation =
+        wrapperValidationWorkflowViolation(
+            Files.readString(root.resolve(relative), StandardCharsets.UTF_8));
+    if (violation != null) {
+      violations.add(relative + ": " + violation);
+    }
+  }
+
+  private void checkDevelopmentPostgres(List<String> violations) throws IOException {
+    String violation =
+        developmentPostgresViolation(
+            Files.readString(root.resolve("compose.yaml"), StandardCharsets.UTF_8),
+            Files.readString(root.resolve("lemon"), StandardCharsets.UTF_8));
+    if (violation != null) {
+      violations.add("compose.yaml: " + violation);
+    }
+  }
+
+  private void checkAndroidReleaseSigning(List<String> violations) throws IOException {
+    String relative = "apps/mobile/android/app/build.gradle.kts";
+    String violation =
+        androidReleaseSigningViolation(
+            Files.readString(root.resolve(relative), StandardCharsets.UTF_8));
+    if (violation != null) {
+      violations.add(relative + ": " + violation);
+    }
+  }
+
+  private void checkWebShellSurfaces(List<String> violations) throws IOException {
+    String bg0 =
+        ToolSupport.JSON
+            .readTree(root.resolve("design/tokens/colors.json").toFile())
+            .path("bg0")
+            .asText()
+            .toUpperCase();
+    for (String app : List.of("moderation", "widgetbook")) {
+      String webRoot = "apps/" + app + "/web/";
+      String violation =
+          webShellViolation(
+              Files.readString(root.resolve(webRoot + "index.html"), StandardCharsets.UTF_8),
+              Files.readString(root.resolve(webRoot + "manifest.json"), StandardCharsets.UTF_8),
+              Files.readString(
+                  root.resolve(webRoot + "lemon_generated_colors.css"), StandardCharsets.UTF_8),
+              bg0);
+      if (violation != null) {
+        violations.add(webRoot + ": " + violation);
+      }
+    }
+  }
+
   private static String provisionalViolation(String relative, String source) {
     if (isProvisionalExcluded(relative) || !isProvisionalText(relative)) {
       return null;
@@ -419,6 +534,78 @@ final class RepositoryPolicy {
     return metadata.contains("<verify-metadata>true</verify-metadata>")
         ? null
         : "Flutter Android Gradle dependencies require checksum verification metadata";
+  }
+
+  private static String buildLogicCatalogViolation(String source) {
+    return BUILD_LOGIC_VERSIONED_DEPENDENCY.matcher(source).find()
+            || BUILD_LOGIC_TOOL_VERSION.matcher(source).find()
+        ? "catalog-owned dependency/tool version must come from gradle/libs.versions.toml"
+        : null;
+  }
+
+  private static String wrapperValidationWorkflowViolation(String source) {
+    if (!PINNED_WRAPPER_VALIDATION_ACTION.matcher(source).find()) {
+      return "official Gradle wrapper validation action must be pinned to a full commit SHA";
+    }
+    if (!source.contains(
+        "policy:\n    name: Policy / schema first\n    needs: wrapper-validation")) {
+      return "wrapper validation must complete before the policy/build graph";
+    }
+    if (!source.contains("min-wrapper-count: 2")) {
+      return "wrapper validation must require both repository wrapper JARs";
+    }
+    return source.contains("needs: [wrapper-validation, pr-classification, final-verification]")
+        ? null
+        : "terminal PR gate must depend on wrapper validation";
+  }
+
+  private static String developmentPostgresViolation(String compose, String commandSurface) {
+    if (!DIGEST_PINNED_POSTGRES.matcher(compose).find()) {
+      return "development PostgreSQL image must retain its tag and pin a SHA-256 digest";
+    }
+    if (!compose.contains("127.0.0.1:5432:5432") || compose.contains("\"5432:5432\"")) {
+      return "development PostgreSQL port must bind to 127.0.0.1 only";
+    }
+    return commandSurface.contains("docker compose up --detach --wait postgres")
+        ? null
+        : "./lemon dev must wait for PostgreSQL health before backend boot";
+  }
+
+  private static String androidReleaseSigningViolation(String source) {
+    if (source.contains("signingConfigs.getByName(\"debug\")") || source.contains("TODO")) {
+      return "Android release builds must not fall back to debug signing";
+    }
+    for (String required :
+        List.of(
+            "LEMON_RELEASE_STORE_FILE",
+            "LEMON_RELEASE_STORE_PASSWORD",
+            "LEMON_RELEASE_KEY_ALIAS",
+            "LEMON_RELEASE_KEY_PASSWORD",
+            "gradle.taskGraph.whenReady",
+            "Release signing is not configured")) {
+      if (!source.contains(required)) {
+        return "Android release signing must fail closed with an explicit configuration contract";
+      }
+    }
+    return null;
+  }
+
+  private static String webShellViolation(
+      String index, String manifest, String generatedCss, String bg0) {
+    String combined = index + manifest + generatedCss;
+    if (combined.contains("#0175C2") || combined.contains("A new Flutter project.")) {
+      return "Flutter template design/copy must not escape into Lemon web shells";
+    }
+    if (!index.contains("lemon_generated_colors.css")) {
+      return "web shell must load the generated Lemon color surface";
+    }
+    if (!generatedCss.contains("--lemon-bg0: " + bg0)) {
+      return "generated web shell background must equal design token bg0";
+    }
+    return manifest.contains("\"background_color\": \"" + bg0 + "\"")
+            && manifest.contains("\"theme_color\": \"" + bg0 + "\"")
+        ? null
+        : "web manifest background/theme must equal design token bg0";
   }
 
   private static String iosFallback(String hexColor) {

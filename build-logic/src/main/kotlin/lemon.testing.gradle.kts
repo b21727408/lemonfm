@@ -1,13 +1,16 @@
+import org.gradle.api.artifacts.VersionCatalogsExtension
+
 plugins {
     java
 }
 
 val sourceSets = extensions.getByType<SourceSetContainer>()
+val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
 
 dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.modulith:spring-modulith-starter-test")
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
+    testImplementation(catalog.findLibrary("archunit-junit5").get())
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

@@ -156,6 +156,62 @@ final class DesignTokenGenerator {
             iosComponent(color.substring(0, 2)));
   }
 
+  String generateWebGroundCss() throws IOException {
+    return """
+        /* GENERATED FILE — DO NOT EDIT. Generated from design/tokens/colors.json. */
+        :root {
+          --lemon-bg0: %s;
+        }
+
+        html,
+        body {
+          background-color: var(--lemon-bg0);
+        }
+        """
+        .formatted(groundColor());
+  }
+
+  String generateWebManifest(String name, String shortName, String description) throws IOException {
+    return """
+        {
+          "name": "%s",
+          "short_name": "%s",
+          "start_url": ".",
+          "display": "standalone",
+          "background_color": "%s",
+          "theme_color": "%s",
+          "description": "%s",
+          "orientation": "portrait-primary",
+          "prefer_related_applications": false,
+          "icons": [
+            {
+              "src": "icons/Icon-192.png",
+              "sizes": "192x192",
+              "type": "image/png"
+            },
+            {
+              "src": "icons/Icon-512.png",
+              "sizes": "512x512",
+              "type": "image/png"
+            },
+            {
+              "src": "icons/Icon-maskable-192.png",
+              "sizes": "192x192",
+              "type": "image/png",
+              "purpose": "maskable"
+            },
+            {
+              "src": "icons/Icon-maskable-512.png",
+              "sizes": "512x512",
+              "type": "image/png",
+              "purpose": "maskable"
+            }
+          ]
+        }
+        """
+        .formatted(name, shortName, groundColor(), groundColor(), description);
+  }
+
   private String groundColor() throws IOException {
     String value = readToken("colors.json").path("bg0").asText();
     if (!value.matches("#[0-9A-Fa-f]{6}")) {

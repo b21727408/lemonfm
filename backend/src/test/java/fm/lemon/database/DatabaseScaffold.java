@@ -11,6 +11,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.flywaydb.core.Flyway;
 import org.jooq.codegen.GenerationTool;
 import org.jooq.meta.jaxb.Configuration;
@@ -20,17 +22,41 @@ import org.jooq.meta.jaxb.Generator;
 import org.jooq.meta.jaxb.Jdbc;
 import org.jooq.meta.jaxb.Target;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
 final class DatabaseScaffold {
-  static final String POSTGRES_IMAGE = "postgres:18.6";
+  private static final Pattern POSTGRES_IMAGE =
+      Pattern.compile("(?m)^\\s*image:\\s*(postgres:[^\\s@]+@sha256:[0-9a-f]{64})\\s*(?:#.*)?$");
 
   private DatabaseScaffold() {}
 
   static PostgreSQLContainer postgres() {
-    return new PostgreSQLContainer(POSTGRES_IMAGE)
+    return new PostgreSQLContainer(postgresDockerImage())
         .withDatabaseName("lemon")
         .withUsername("lemon")
         .withPassword("lemon");
+  }
+
+  static DockerImageName postgresDockerImage() {
+    return DockerImageName.parse(postgresImage()).asCompatibleSubstituteFor("postgres");
+  }
+
+  static String postgresImage() {
+    String composePath = System.getProperty("lemon.compose.file");
+    if (composePath == null || composePath.isBlank()) {
+      throw new IllegalStateException(
+          "lemon.compose.file must point to the repository Compose file");
+    }
+    try {
+      Matcher image = POSTGRES_IMAGE.matcher(Files.readString(Path.of(composePath)));
+      if (!image.find()) {
+        throw new IllegalStateException(
+            "Compose PostgreSQL image must use a tag and SHA-256 digest");
+      }
+      return image.group(1);
+    } catch (IOException exception) {
+      throw new IllegalStateException("Cannot read Compose PostgreSQL image", exception);
+    }
   }
 
   static Flyway migrate(PostgreSQLContainer container) {

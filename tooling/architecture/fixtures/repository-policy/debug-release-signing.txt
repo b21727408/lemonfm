@@ -1,0 +1,6 @@
+buildTypes {
+    release {
+        // TODO: configure this later.
+        signingConfig = signingConfigs.getByName("debug")
+    }
+}

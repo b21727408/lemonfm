@@ -1,0 +1,4 @@
+jobs:
+  wrapper-validation:
+    steps:
+      - uses: gradle/actions/wrapper-validation@v6

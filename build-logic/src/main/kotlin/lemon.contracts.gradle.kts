@@ -1,5 +1,6 @@
 import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 import org.openapitools.generator.gradle.plugin.tasks.ValidateTask
+import org.gradle.api.artifacts.VersionCatalogsExtension
 
 plugins {
     java
@@ -7,6 +8,7 @@ plugins {
 }
 
 val sourceSets = extensions.getByType<SourceSetContainer>()
+val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
 val repositoryRoot = rootProject.layout.projectDirectory
 val contractRoot = repositoryRoot.dir("contracts/http")
 val fixtureContractRoot = repositoryRoot.dir("contracts/fixtures/http")
@@ -24,8 +26,8 @@ sourceSets.named("test") {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     compileOnly("jakarta.annotation:jakarta.annotation-api")
-    testImplementation("com.atlassian.oai:openapi-request-validator-mockmvc:3.0.0")
-    testImplementation("org.wiremock:wiremock:3.13.2")
+    testImplementation(catalog.findLibrary("openapi-request-validator-mockmvc").get())
+    testImplementation(catalog.findLibrary("wiremock").get())
 }
 
 fun registerServerGenerator(

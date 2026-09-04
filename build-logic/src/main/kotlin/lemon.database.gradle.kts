@@ -1,8 +1,12 @@
+import org.gradle.api.artifacts.VersionCatalogsExtension
+
 plugins {
     java
 }
 
 val sourceSets = extensions.getByType<SourceSetContainer>()
+val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
+val composeFile = rootProject.layout.projectDirectory.file("compose.yaml").asFile
 
 sourceSets.named("main") {
     java.srcDir("src/generated/jooq")
@@ -14,7 +18,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
     testImplementation("org.jooq:jooq-codegen")
-    testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
+    testImplementation(catalog.findLibrary("testcontainers-postgresql").get())
 }
 
 tasks.register<JavaExec>("generateJooq") {
@@ -23,5 +27,10 @@ tasks.register<JavaExec>("generateJooq") {
     dependsOn(tasks.named("testClasses"))
     classpath = sourceSets.named("test").get().runtimeClasspath
     mainClass = "fm.lemon.database.JooqGenerator"
+    systemProperty("lemon.compose.file", composeFile.absolutePath)
     args(layout.projectDirectory.dir("src/generated/jooq").asFile.absolutePath)
+}
+
+tasks.withType<Test>().configureEach {
+    systemProperty("lemon.compose.file", composeFile.absolutePath)
 }

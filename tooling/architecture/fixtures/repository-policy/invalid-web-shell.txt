@@ -1,0 +1,3 @@
+<meta name="description" content="A new Flutter project.">
+{"background_color":"#0175C2","theme_color":"#0175C2"}
+body { background: #0175C2; }

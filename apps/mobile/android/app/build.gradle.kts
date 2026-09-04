@@ -4,6 +4,26 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+fun releaseSigningValue(name: String): String? =
+    providers.gradleProperty(name).orElse(providers.environmentVariable(name)).orNull
+
+val releaseSigningValues =
+    mapOf(
+        "store file" to releaseSigningValue("LEMON_RELEASE_STORE_FILE"),
+        "store password" to releaseSigningValue("LEMON_RELEASE_STORE_PASSWORD"),
+        "key alias" to releaseSigningValue("LEMON_RELEASE_KEY_ALIAS"),
+        "key password" to releaseSigningValue("LEMON_RELEASE_KEY_PASSWORD"),
+    )
+val releaseSigningConfigured = releaseSigningValues.values.all { !it.isNullOrBlank() }
+
+gradle.taskGraph.whenReady {
+    val releaseTaskRequested = allTasks.any { it.project == project && it.name.contains("Release") }
+    if (releaseTaskRequested && !releaseSigningConfigured) {
+        val missing = releaseSigningValues.filterValues { it.isNullOrBlank() }.keys.joinToString()
+        throw GradleException("Release signing is not configured; missing: $missing")
+    }
+}
+
 android {
     namespace = "fm.lemon"
     compileSdk = flutter.compileSdkVersion
@@ -28,11 +48,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(requireNotNull(releaseSigningValues["store file"]))
+                storePassword = releaseSigningValues["store password"]
+                keyAlias = releaseSigningValues["key alias"]
+                keyPassword = releaseSigningValues["key password"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

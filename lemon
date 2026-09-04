@@ -222,6 +222,10 @@ generated_drift_check() {
       architecture/generated \
       apps/mobile/android/app/src/main/res/values/lemon_generated_colors.xml \
       apps/mobile/ios/Runner/Assets.xcassets/LemonBg0.colorset \
+      apps/moderation/web/lemon_generated_colors.css \
+      apps/moderation/web/manifest.json \
+      apps/widgetbook/web/lemon_generated_colors.css \
+      apps/widgetbook/web/manifest.json \
       backend/src/generated \
       backend/src/main/java \
       backend/src/test/resources/generated \
@@ -242,6 +246,65 @@ generated_drift_check() {
   esac
   [[ "$status" -eq 0 ]] || return "$status"
   echo "generated artifacts: current (isolated non-mutating regeneration)"
+}
+
+is_build_infrastructure_path() {
+  case "$1" in
+    build-logic/*|gradle/*|gradlew|gradlew.bat|settings.gradle.kts|gradle.properties|.github/workflows/*|.github/actions/*|tooling/architecture/*|tooling/*.sh|lemon|lemon.cmd|compose.yaml|apps/mobile/android/*.gradle.kts|apps/mobile/android/gradle.properties|architecture/modules.schema.json)
+      return 0
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+has_build_infrastructure_path() {
+  local path
+  while IFS= read -r path; do
+    [[ -z "$path" ]] || ! is_build_infrastructure_path "$path" || return 0
+  done
+  return 1
+}
+
+is_build_infrastructure_title() {
+  [[ "$1" =~ ^build: ]] || [[ "$1" =~ ^chore\(build\): ]]
+}
+
+verify_pr_classification_policy() {
+  local build_paths feature_paths
+  build_paths="$(<"$ROOT/tooling/pr-classification-fixtures/build-paths.txt")"
+  feature_paths="$(<"$ROOT/tooling/pr-classification-fixtures/feature-paths.txt")"
+  if ! has_build_infrastructure_path <<<"$build_paths"; then
+    echo "PR classification permanent build-path fixture was not recognized" >&2
+    return 70
+  fi
+  if has_build_infrastructure_path <<<"$feature_paths"; then
+    echo "PR classification permanent feature-path fixture was misclassified" >&2
+    return 70
+  fi
+  if is_build_infrastructure_title "feat: add profile screen"; then
+    echo "PR classification permanent feature-title fixture was misclassified" >&2
+    return 70
+  fi
+  if ! is_build_infrastructure_title "build: update Gradle policy" ||
+    ! is_build_infrastructure_title "chore(build): scaffold repository"; then
+    echo "PR classification permanent build-title fixture was rejected" >&2
+    return 70
+  fi
+}
+
+pr_classification_check() {
+  verify_pr_classification_policy
+  local title="${LEMON_PR_TITLE:-}" base_ref="${LEMON_PR_BASE_REF:-origin/main}" changed_paths
+  if [[ -z "$title" ]]; then
+    echo "PR classification: permanent fixtures passed (PR metadata unavailable locally)"
+    return
+  fi
+  changed_paths="$(git diff --name-only "$base_ref"...HEAD)"
+  if has_build_infrastructure_path <<<"$changed_paths" && ! is_build_infrastructure_title "$title"; then
+    echo "Build-infrastructure changes require a PR title beginning with 'build:' or 'chore(build):'" >&2
+    return 70
+  fi
+  echo "PR classification: valid"
 }
 
 repository_security() {
@@ -298,7 +361,9 @@ case "${1:-}" in
     scope="${3:-all}"
     [[ "${2:-}" == "--scope" ]] || scope="all"
     case "$scope" in
+      pr-classification) pr_classification_check ;;
       policy|generated)
+        [[ "$scope" != policy ]] || verify_pr_classification_policy
         architecture "check $scope"
         [[ "$scope" != policy ]] || "$GRADLE" :tooling:architecture:spotlessCheck
         ;;
@@ -315,6 +380,7 @@ case "${1:-}" in
       repository-security) repository_security ;;
       build-smoke) build_smoke ;;
       all)
+        verify_pr_classification_policy
         architecture "check all"
         generated_drift_check
         "$GRADLE" :tooling:architecture:spotlessCheck :backend:contractsCheck :backend:check :backend:postgresIntegrationTest
@@ -340,7 +406,7 @@ case "${1:-}" in
     "$DART" format "${dart_sources[@]}"
     ;;
   dev)
-    docker compose up -d postgres
+    docker compose up --detach --wait postgres
     SPRING_FLYWAY_ENABLED=true "$GRADLE" :backend:bootRun
     ;;
   *) echo "usage: ./lemon {check|test|fix|generate|dev} [--scope <scope>]" >&2; exit 64 ;;
