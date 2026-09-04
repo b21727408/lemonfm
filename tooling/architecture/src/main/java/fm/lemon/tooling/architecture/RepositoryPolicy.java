@@ -64,6 +64,7 @@ final class RepositoryPolicy {
     checkBuildLogicCatalogImport(violations);
     checkWrapperValidationWorkflow(violations);
     checkDevelopmentPostgres(violations);
+    checkDependabotDockerCompose(violations);
     checkAndroidReleaseSigning(violations);
     checkWebShellSurfaces(violations);
     try (Stream<Path> paths = Files.walk(root)) {
@@ -223,6 +224,10 @@ final class RepositoryPolicy {
         developmentPostgresViolation(
             validCompose, Files.readString(fixtures.resolve("dev-postgres-no-wait.txt"))),
         "development PostgreSQL health wait");
+    expectViolation(
+        dependabotDockerComposeViolation(
+            validCompose, Files.readString(fixtures.resolve("dependabot-docker-only.txt"))),
+        "Docker-only Dependabot configuration for Compose");
     expectViolation(
         androidReleaseSigningViolation(
             Files.readString(fixtures.resolve("debug-release-signing.txt"))),
@@ -410,6 +415,17 @@ final class RepositoryPolicy {
     }
   }
 
+  private void checkDependabotDockerCompose(List<String> violations) throws IOException {
+    String relative = ".github/dependabot.yml";
+    String violation =
+        dependabotDockerComposeViolation(
+            Files.readString(root.resolve("compose.yaml"), StandardCharsets.UTF_8),
+            Files.readString(root.resolve(relative), StandardCharsets.UTF_8));
+    if (violation != null) {
+      violations.add(relative + ": " + violation);
+    }
+  }
+
   private void checkAndroidReleaseSigning(List<String> violations) throws IOException {
     String relative = "apps/mobile/android/app/build.gradle.kts";
     String violation =
@@ -569,6 +585,25 @@ final class RepositoryPolicy {
     return commandSurface.contains("docker compose up --detach --wait postgres")
         ? null
         : "./lemon dev must wait for PostgreSQL health before backend boot";
+  }
+
+  private static String dependabotDockerComposeViolation(String compose, String dependabot)
+      throws IOException {
+    if (!DIGEST_PINNED_POSTGRES.matcher(compose).find()) {
+      return null;
+    }
+    for (JsonNode update : ToolSupport.YAML.readTree(dependabot).path("updates")) {
+      if ("docker-compose".equals(update.path("package-ecosystem").asText())
+          && "/".equals(update.path("directory").asText())) {
+        if (!"monthly".equals(update.path("schedule").path("interval").asText())) {
+          return "root docker-compose Dependabot entry must preserve the monthly cadence";
+        }
+        return update.path("open-pull-requests-limit").asInt() == 5
+            ? null
+            : "root docker-compose Dependabot entry must preserve open-pull-requests-limit 5";
+      }
+    }
+    return "root compose.yaml PostgreSQL image requires a docker-compose Dependabot entry for /";
   }
 
   private static String androidReleaseSigningViolation(String source) {
