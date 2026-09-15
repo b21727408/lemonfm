@@ -10,6 +10,8 @@ Keep hand-written code, generated bindings, platform boilerplate and test fixtur
 
 ## Tools and responsibilities
 
+The tools below are selected requirements. Their presence in this document is not evidence that they are installed or passing. The milestone table defines when each check must work; build configuration and recorded runs establish its actual coverage.
+
 | Area | Tool or approach | Scope |
 |---|---|---|
 | Java formatting | Spotless with google-java-format | Hand-written Java; automated fixes |
@@ -24,8 +26,9 @@ Keep hand-written code, generated bindings, platform boilerplate and test fixtur
 | Flutter behavior | Controller/repository tests, widget tests, selected integration flows | State, interaction and API integration |
 | Visual regression | Selected goldens and Widgetbook | Stable shared components and useful documented states |
 | Dependencies and secrets | Version locks, Gradle verification and Gitleaks | Reproducible resolution and accidental secret additions |
+| Known dependency vulnerabilities | Audit mechanism selected under E5 | Resolved Gradle/Pub dependencies, explicit coverage and finding triage |
 
-NullAway is an Error Prone plugin, so these tools serve a combined compilation workflow rather than independent duplicate lint systems. Keep their configuration small and compatible with the selected compiler. Prefer Java records and ordinary constructors where useful; do not add Lombok simply to avoid a few declarations. [NullAway documentation](https://github.com/uber/NullAway)
+Spotless runs google-java-format and owns Java layout. Checkstyle adds only the small source rules in the table; do not import a full style preset that duplicates formatting or imposes blanket Javadoc, method-length or class-size quotas. Error Prone checks bug patterns during compilation. NullAway is its nullness-checking plugin; JSpecify supplies annotations, not another analysis engine. Configure the checked first-party scope and nullness mode explicitly, and prove the selected compiler/annotation combination under E2. Keep exceptions narrow and justified. These checks do not establish runtime authorization or eliminate every possible null failure. [Checkstyle](https://checkstyle.org/) [Error Prone](https://errorprone.info/) [NullAway](https://github.com/uber/NullAway) [JSpecify](https://jspecify.dev/docs/user-guide/)
 
 Enable Dart's strict-casts, strict-inference and strict-raw-types modes in shared analysis options. CI treats analyzer errors, warnings and info diagnostics in first-party code as failures. Keep generated-source exclusions targeted; do not hide first-party findings with blanket ignores. [Dart strict type checks](https://dart.dev/tools/analysis#enabling-stricter-type-checks)
 
@@ -33,7 +36,20 @@ Explicitly enable implementation_imports and depend_on_referenced_packages; do n
 
 Pin Gitleaks and oasdiff and verify downloaded tool artifacts. Keep secret-scanner output redacted. Compatibility findings still require review of behavior and privacy; a passing diff does not establish either. [Gitleaks](https://github.com/gitleaks/gitleaks) [oasdiff](https://www.oasdiff.com/)
 
-Do not add PMD, SpotBugs, Sonar or a custom analyzer plugin without a concrete uncovered need. Do not preserve broad regex policies that infer behavior from method names or raw words. Business time should be injectable where tests need control; this does not justify banning every time API throughout platform code.
+### Not selected for the initial setup
+
+These are deliberate omissions, not a backlog of tools that must eventually be installed. A later addition needs a specific uncovered risk and evidence that its benefit justifies configuration, findings and maintenance. Different analyzers can find different defects; overlap does not make them equivalent.
+
+| Tool or policy | Why it is not an initial requirement | Reason to reconsider |
+|---|---|---|
+| PMD, SpotBugs and a Sonar platform | No additional rule set or reporting need has been identified beyond the selected checks; stacking defaults creates another findings/configuration workload | A useful uncovered defect class or an actual cross-repository reporting need |
+| A custom Dart analyzer plugin or generated architecture-policy engine | Standard import diagnostics and a small pubspec check cover the chosen feature dependency rule | A recurring, consequential boundary violation those checks cannot detect |
+| Riverpod code generation | Handwritten controllers meet the current state/composition needs without another generator; [Mobile](mobile.md#data-and-presentation) owns the choice | Repeated real provider boilerplate with a demonstrated maintenance benefit; OpenAPI and localization generation remain selected |
+| Lombok and mandatory generation of every Dart model | Records, constructors and ordinary immutable types are sufficient defaults | A concrete model need; Mobile permits Freezed for useful equality/copy/union behavior, without requiring it globally |
+| Universal coverage percentages, size quotas and mandatory Javadoc on every declaration | These do not prove the product's important failure cases and can reward filler tests/comments or artificial splitting | Coverage reports or focused metrics that reveal a real testing/maintenance gap; no repository-wide percentage gate is selected |
+| Broad regex bans and a custom task engine | Names and raw words do not establish behavior; ordinary build tools can run the selected checks | A specific missed invariant or execution need that cannot be handled by a small direct check/task |
+
+Business time should be injectable where tests need control; this does not justify banning every time API throughout platform code. Freezed and property-based test libraries are conditional implementation choices, not promised later milestones. Selected goldens, device checks and feature tests instead become required when their milestones below apply.
 
 ## Test behavior by risk
 
@@ -71,19 +87,19 @@ During bootstrap, assert that standard Modulith discovery finds the complete dec
 
 Keep the additional Java checks focused: a module cannot use another module's persistence; public module APIs cannot expose persistence/internal/HTTP types; business modules cannot depend on technical HTTP/configuration packages; technical adapters can use only module APIs, with business code confined to its declared roots. Include generic API signatures and generated-type references where relevant. Do not exclude an entire package merely because one generated class needs a narrow analysis configuration.
 
-Generated Dart API bindings are checked in for a straightforward Flutter bootstrap; their inputs and generator version are pinned. Generated Java interfaces and jOOQ types are build outputs regenerated before compilation. Disable generated sample tests/docs that are not used. Generated output is never manually repaired, and generated sources are excluded from first-party style rules.
+Generated Dart API bindings are checked in for a straightforward Flutter bootstrap; their inputs and generator version are pinned. Generated Java interfaces and jOOQ types are build outputs regenerated before compilation. Disable generated sample tests/docs that are not used. Generated output is never manually repaired, and generated sources are excluded from first-party style rules. Such exclusions do not remove compilation, generator compatibility, contract drift or applicable runtime response/privacy checks.
 
 The database generation proof starts from empty storage, applies migrations and compiles code using at least one generated table. Changing a migration to introduce a new referenced field must not require compiling stale application tests first. Maintain that dependency ordering in the build graph.
 
 ## When a check becomes required
 
-| Milestone | Required evidence |
-|---|---|
-| First generator proof | Pinned inputs/configuration, Java/Dart compilation, relevant serialization/validation behavior and deterministic regeneration; no product endpoints implemented |
-| Bootstrap | Formatting and strict analysis, module/package boundary checks, OpenAPI validation and drift checks, clean PostgreSQL/Flyway/jOOQ generation, dependency locks/verification, secret scan, protected-document diff check and a buildable consumer shell |
-| First affected feature | Its positive/negative authorization, real database integrity, retry/concurrency and Flutter state/widget tests; durable-event tests only when that feature needs durable work |
-| First stable shared UI | A small useful component catalog and selected goldens, alongside real text and accessibility checks; no empty catalog application as a gate |
-| External pilot | Applicable provider, data-lifecycle, staff-access, device, backup/restore and operational checks below, plus the approved product decisions in Decisions |
+| Milestone | Required evidence | Why at this point |
+|---|---|---|
+| First generator proof | Pinned inputs/configuration, Java/Dart compilation, relevant serialization/validation behavior and deterministic regeneration; no product endpoints implemented | Generator incompatibility must surface before application code depends on its output |
+| Bootstrap | Formatting and strict analysis, module/package boundary checks, OpenAPI validation and drift checks, clean PostgreSQL/Flyway/jOOQ generation, dependency locks/verification, dependency-vulnerability audit under E5, secret scan, protected-document diff check and a buildable consumer shell | These checks protect all subsequent work; the resolved dependency graphs make a meaningful audit possible |
+| First affected feature | Its positive/negative authorization, real database integrity, retry/concurrency and Flutter state/widget tests; durable-event tests only when that feature needs durable work | A shell cannot demonstrate the behavior of an unimplemented feature; these tests arrive with its code, not at the end of the project |
+| First stable shared UI | A small useful component catalog and selected goldens, alongside real text and accessibility checks; no empty catalog application as a gate | Useful visual baselines need real components and states; ordinary widget and accessibility work starts with the affected UI |
+| External pilot | Applicable provider, data-lifecycle, staff-access, device, backup/restore and operational checks below, plus the approved product decisions in Decisions | Live configuration, supported devices and realistic data/workload evidence are required before exposing users; synthetic bootstrap checks cannot substitute |
 
 Each applicable gate must pass; later feature and pilot gates do not delay unrelated bootstrap work. Check results name the actual feature and environment. A mock feed is evidence for its UI states only, not ranking quality or completion of the discovery stage.
 
@@ -99,7 +115,7 @@ CI runs independent backend, Flutter, contract and database work in parallel whe
 
 For app changes, compile the Android target in routine CI and validate iOS on an available macOS runner before its release. Introducing an iOS plugin requires iOS compilation evidence, not an assumption based on Android success. Record platform-specific checks that could not run.
 
-Dependency updates occur in focused, reviewable changes. Lock direct and transitive resolution and verify downloaded Gradle artifacts. A vulnerability finding is triaged for affected versions and actual exposure, with a patch or explicit time-bound treatment; adding a scanner alone is not the security outcome.
+Dependency updates occur in focused, reviewable changes. Lock direct and transitive resolution and verify downloaded Gradle artifacts. Locks control resolution, artifact verification checks accepted bytes, and Gitleaks detects likely secrets; none establishes that dependencies have no known vulnerabilities. Select the dependency-vulnerability audit mechanism under [Decisions E5](decisions.md#engineering-proofs-and-bounded-questions) once Gradle and Pub resolve, run it before bootstrap acceptance and on dependency changes, and refresh its evidence before an external pilot. Record the actual ecosystem/transitive coverage and any unsupported portion; an unsupported graph cannot be reported as clean. A vulnerability finding is triaged for affected versions and actual exposure, with a patch or explicit time-bound treatment; adding a scanner alone is not the security outcome.
 
 ## Review
 
