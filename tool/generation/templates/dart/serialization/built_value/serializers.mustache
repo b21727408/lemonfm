@@ -1,0 +1,50 @@
+{{! Adapted from OpenAPI Generator 7.25.0 (Apache-2.0).
+    Upstream builtValueSerializers includes containers from excluded models.
+    Register containers from selected model properties instead. This also retains
+    inline enum element types. StandardJsonPlugin drops explicit nulls before the
+    generated Optional deserializer sees them; preserve map entries for generated
+    model types only. Recheck all three differences on generator upgrades. }}
+{{>header}}
+import 'package:one_of_serializer/any_of_serializer.dart';
+import 'package:one_of_serializer/one_of_serializer.dart';
+import 'package:built_collection/built_collection.dart';
+import 'package:built_value/serializer.dart';
+import 'package:built_value/standard_json_plugin.dart';
+import 'package:built_value/iso_8601_date_time_serializer.dart';
+import 'package:{{pubName}}/{{sourceFolder}}/date_serializer.dart';
+{{#models}}{{#model}}import '{{{vendorExtensions.x-import-path}}}';
+{{/model}}{{/models}}
+part 'serializers.g.dart';
+
+@SerializersFor([{{#models}}{{#model}}
+  {{classname}},{{/model}}{{/models}}
+])
+Serializers serializers = (_$serializers.toBuilder()
+  {{#models}}{{#model}}{{#vars}}{{#isContainer}}
+  ..addBuilderFactory(
+    const {{>serialization/built_value/variable_serializer_type}},
+    () => {{#isMap}}MapBuilder<String, {{/isMap}}{{^isMap}}{{#uniqueItems}}SetBuilder<{{/uniqueItems}}{{^uniqueItems}}ListBuilder<{{/uniqueItems}}{{/isMap}}{{#items}}{{>serialization/built_value/variable_type}}{{/items}}>(),
+  )
+  {{/isContainer}}{{/vars}}{{/model}}{{/models}}
+  {{#models}}{{#model}}{{#vars}}{{#isContainer}}{{#items}}{{#isEnum}}
+  ..add({{{datatypeWithEnum}}}.serializer)
+  {{/isEnum}}{{/items}}{{/isContainer}}{{/vars}}{{/model}}{{/models}}
+  ..add(const OneOfSerializer())
+  ..add(const AnyOfSerializer())
+  ..add(const DateSerializer())
+  ..add(Iso8601DateTimeSerializer())
+).build();
+Serializers standardSerializers =
+  (serializers.toBuilder()..addPlugin(_PresenceJsonPlugin())).build();
+
+// Preserve explicit nulls for model fields before Optional deserialization.
+class _PresenceJsonPlugin extends StandardJsonPlugin {
+  @override
+  Object? beforeDeserialize(Object? object, FullType specifiedType) {
+    const modelTypes = <Type>[{{#models}}{{#model}}{{classname}},{{/model}}{{/models}}];
+    if (object is Map<String, dynamic> && modelTypes.contains(specifiedType.root)) {
+      return <Object?>[for (final entry in object.entries) ...[entry.key, entry.value]];
+    }
+    return super.beforeDeserialize(object, specifiedType);
+  }
+}

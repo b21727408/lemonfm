@@ -1,0 +1,22 @@
+[versions]
+openapi = "7.25.0"
+spring-boot = "3.5.16"
+jackson-nullable = "0.2.9"
+json-schema = "1.5.9"
+
+[libraries]
+openapi-generator = { module = "org.openapitools:openapi-generator-cli", version.ref = "openapi" }
+spring-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-web = { module = "org.springframework:spring-web" }
+spring-webmvc = { module = "org.springframework:spring-webmvc" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind" }
+jackson-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310" }
+jackson-yaml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml" }
+jackson-nullable = { module = "org.openapitools:jackson-databind-nullable", version.ref = "jackson-nullable" }
+validation = { module = "jakarta.validation:jakarta.validation-api" }
+annotation = { module = "jakarta.annotation:jakarta.annotation-api" }
+servlet = { module = "jakarta.servlet:jakarta.servlet-api" }
+hibernate-validator = { module = "org.hibernate.validator:hibernate-validator" }
+junit = { module = "org.junit.jupiter:junit-jupiter" }
+junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+json-schema = { module = "com.networknt:json-schema-validator", version.ref = "json-schema" }

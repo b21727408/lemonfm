@@ -1,0 +1,65 @@
+plugins { id 'base' }
+
+configurations { openapiGenerator }
+dependencies { openapiGenerator libs.openapi.generator }
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
+}
+
+def contract = layout.projectDirectory.file('contracts/http/public-v1.yaml')
+def generatedJava = layout.buildDirectory.dir('generated/http/java')
+def generatedDart = layout.buildDirectory.dir('generated/http/dart')
+// Profiles and its transitive transport types; no feature implementation is generated.
+def profileModels = ['AcknowledgeProfileChange', 'ApiError', 'ApiError_violations_inner',
+    'AvatarRepresentation', 'BlankRepresentation', 'LatestProfileChange', 'MemberProfile',
+    'MyProfile', 'PhotoRepresentation', 'ProfileChange', 'ProfileChangeFields',
+    'ProfileChangeFields_promptAnswers_inner', 'ProfileChangeNudge', 'ProfileChangeProblem',
+    'ProfilePhotoChange', 'ProfilePromptAnswers_inner', 'ProfileRepresentation',
+    'ProfileRepresentationChange', 'SubmitProfileChange'].join(':')
+
+tasks.register('validateContract', JavaExec) {
+    doFirst {
+        def expectedJava = file('.java-version').text.trim()
+        if (System.getProperty('java.version') != expectedJava) {
+            throw new GradleException("Use Temurin ${expectedJava}; found ${System.getProperty('java.version')}")
+        }
+    }
+    classpath = configurations.openapiGenerator
+    mainClass = 'org.openapitools.codegen.OpenAPIGenerator'
+    args 'validate', '-i', contract.asFile
+    inputs.file(contract)
+}
+
+['Java': [generator: 'spring', output: generatedJava, config: 'java.json'],
+ 'Dart': [generator: 'dart-dio', output: generatedDart, config: 'dart.json']].each { language, spec ->
+    tasks.register("generate${language}Http", JavaExec) {
+        dependsOn 'validateContract'
+        classpath = configurations.openapiGenerator
+        mainClass = 'org.openapitools.codegen.OpenAPIGenerator'
+        inputs.files(contract, "tool/generation/${spec.config}")
+        inputs.dir("tool/generation/templates/${language.toLowerCase()}")
+        outputs.dir(spec.output)
+        doFirst {
+            def target = spec.output.get().asFile.canonicalFile.toPath()
+            def buildRoot = layout.buildDirectory.get().asFile.canonicalFile.toPath()
+            if (!target.startsWith(buildRoot) || target == buildRoot) {
+                throw new GradleException("Generated output must be below ${buildRoot}")
+            }
+            delete(target)
+        }
+        args 'generate', '-i', contract.asFile, '-g', spec.generator,
+            '-c', file("tool/generation/${spec.config}"), '-o', spec.output.get().asFile,
+            '-t', file("tool/generation/templates/${language.toLowerCase()}"),
+            '--global-property', "apis=Profiles,models=${profileModels},apiDocs=false,modelDocs=false,apiTests=false,modelTests=false" +
+                (language == 'Dart' ? ',supportingFiles=api_client.dart:api.dart:api_util.dart:serializers.dart:date_serializer.dart:date.dart:optional.dart:auth.dart:basic_auth.dart:bearer_auth.dart:api_key_auth.dart:oauth.dart' : '')
+    }
+}
+
+tasks.named('clean') { dependsOn ':backend:clean' }
+tasks.named('check') { dependsOn ':backend:check' }
+
+tasks.named('wrapper') {
+    gradleVersion = '8.14.3'
+    distributionType = Wrapper.DistributionType.BIN
+}

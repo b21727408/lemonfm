@@ -1,0 +1,14 @@
+{{! Adapted from OpenAPI Generator 7.25.0 JavaSpring/oneof_interface.mustache (Apache-2.0).
+    Variant discriminators are distinct enum types. Object permits covariant enum
+    getters without weakening Jackson's discriminator dispatch or enum parsing.
+    Recheck this override whenever the generator version changes. }}
+{{>additionalOneOfTypeAnnotations}}
+{{#discriminator}}
+{{>typeInfoAnnotation}}
+{{/discriminator}}
+{{>generatedAnnotation}}
+public interface {{classname}} {
+    {{#discriminator}}
+    Object {{propertyGetter}}();
+    {{/discriminator}}
+}

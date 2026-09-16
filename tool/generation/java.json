@@ -1,0 +1,21 @@
+{
+  "apiPackage": "fm.lemon.http.generated.api",
+  "modelPackage": "fm.lemon.http.generated.model",
+  "invokerPackage": "fm.lemon.http.generated",
+  "interfaceOnly": true,
+  "skipDefaultInterface": true,
+  "useSpringBoot3": true,
+  "useTags": true,
+  "useOneOfInterfaces": true,
+  "legacyDiscriminatorBehavior": false,
+  "openApiNullable": true,
+  "containerDefaultToNull": true,
+  "generateJsonIncludeAnnotations": true,
+  "generateJsonSetterNullsAnnotations": true,
+  "optionalNonNullPropertyJsonSetterNulls": "FAIL",
+  "dateLibrary": "java8",
+  "hideGenerationTimestamp": true,
+  "annotationLibrary": "none",
+  "documentationProvider": "none",
+  "useBeanValidation": true
+}
