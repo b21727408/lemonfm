@@ -68,13 +68,16 @@ void compare(
   );
 }
 
+String standaloneManifest(String manifest) => manifest.replaceAll(
+  RegExp(r'^resolution: workspace\r?\n', multiLine: true),
+  '',
+);
+
 Future<void> dartGeneration() async {
   final stage = Directory('${generated.path}/dart');
   // A disposable standalone package reuses the workspace's exact resolution.
   File('${stage.path}/pubspec.yaml').writeAsStringSync(
-    File(
-      '${client.path}/pubspec.yaml',
-    ).readAsStringSync().replaceAll('resolution: workspace\n', ''),
+    standaloneManifest(File('${client.path}/pubspec.yaml').readAsStringSync()),
   );
   File('${root.path}/pubspec.lock').copySync('${stage.path}/pubspec.lock');
   await run('dart', ['pub', 'get', '--enforce-lockfile'], stage);
@@ -110,7 +113,17 @@ Future<void> main(List<String> args) async {
       ], root);
       return;
     }
+    final gradle =
+        '${root.path}/${Platform.isWindows ? 'gradlew.bat' : 'gradlew'}';
     if (args.single == 'check-drift') {
+      // Gradle deletes the disposable candidate before regenerating current inputs.
+      await run(gradle, [
+        'generateDartHttp',
+        '--rerun-tasks',
+        '--console=plain',
+        '--dependency-verification=strict',
+      ], root);
+      await dartGeneration();
       compare(
         snapshot(Directory('${generated.path}/dart/lib')),
         snapshot(Directory('${client.path}/lib')),
@@ -118,8 +131,6 @@ Future<void> main(List<String> args) async {
       );
       return;
     }
-    final gradle =
-        '${root.path}/${Platform.isWindows ? 'gradlew.bat' : 'gradlew'}';
     await run('dart', ['pub', 'get', '--enforce-lockfile'], root);
     await run(gradle, [
       'clean',
@@ -128,6 +139,7 @@ Future<void> main(List<String> args) async {
       ':backend:test',
       '--console=plain',
       '--rerun-tasks',
+      '--dependency-verification=strict',
     ], root);
     await dartGeneration();
     final firstJava = snapshot(
@@ -168,6 +180,7 @@ Future<void> main(List<String> args) async {
       'generateDartHttp',
       '--rerun-tasks',
       '--console=plain',
+      '--dependency-verification=strict',
     ], root);
     await dartGeneration();
     compare(
