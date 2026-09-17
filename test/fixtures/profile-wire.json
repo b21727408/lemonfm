@@ -1,0 +1,103 @@
+{
+  "beforeSetup": {
+    "schema": "MyProfile",
+    "payload": {
+      "revision": "profile-initial-example",
+      "readiness": "INCOMPLETE",
+      "profileId": null,
+      "nickname": null,
+      "cityId": null,
+      "representation": {"kind": "BLANK"},
+      "bio": null,
+      "interestIds": [],
+      "promptAnswers": []
+    }
+  },
+  "memberUnicode": {
+    "schema": "MemberProfile",
+    "payload": {
+      "profileId": "profile-example",
+      "nickname": "İpek_東京",
+      "cityId": "city-example",
+      "representation": {"kind": "AVATAR", "avatarId": "avatar-example"},
+      "bio": "Merhaba 🌍 — Здравствуй",
+      "interestIds": ["interest-books", "interest-music"],
+      "promptAnswers": [{"promptId": "prompt-example", "answer": "Çay ☕, kitap 📚"}]
+    }
+  },
+  "clearBio": {
+    "schema": "SubmitProfileChange",
+    "payload": {"expectedRevision": "profile-r3", "changes": {"bio": null}}
+  },
+  "omitBio": {
+    "schema": "SubmitProfileChange",
+    "payload": {"expectedRevision": "profile-r3", "changes": {"cityId": "city-example"}}
+  },
+  "emptyLists": {
+    "schema": "SubmitProfileChange",
+    "payload": {"expectedRevision": "profile-r3", "changes": {"interestIds": [], "promptAnswers": []}}
+  },
+  "unicodePatch": {
+    "schema": "SubmitProfileChange",
+    "payload": {
+      "expectedRevision": "profile-r3",
+      "changes": {
+        "nickname": "İpek_東京",
+        "bio": "",
+        "representation": {"kind": "PHOTO", "mediaId": "media-example"},
+        "interestIds": ["interest-books"],
+        "promptAnswers": [{"promptId": "prompt-example", "answer": "Çay ☕"}]
+      }
+    }
+  },
+  "processing": {
+    "schema": "ProfileChange",
+    "payload": {
+      "changeId": "change-example-01",
+      "operationId": "op_profile_example_01",
+      "expectedRevision": "profile-r3",
+      "state": "PROCESSING",
+      "stateVersion": "900719925474099312345678901234567890",
+      "createdAt": "2030-01-01T12:00:00.123456Z",
+      "updatedAt": "2030-01-01T12:00:01.123456Z",
+      "changes": {"bio": "Yeni biyografi."}
+    }
+  },
+  "nudge": {
+    "schema": "ProfileChange",
+    "payload": {
+      "changeId": "change-example-01",
+      "operationId": "op_profile_example_01",
+      "expectedRevision": "profile-r3",
+      "state": "AWAITING_ACKNOWLEDGEMENT",
+      "stateVersion": "2",
+      "createdAt": "2030-01-01T12:00:00.123456Z",
+      "updatedAt": "2030-01-01T12:00:01.123456Z",
+      "changes": {"bio": "Yeni biyografi."},
+      "nudge": {"code": "CONTENT_NUDGE_REQUIRED", "reasonCode": "CONTENT_CAUTION", "nudgeToken": "synthetic-nudge-token", "fields": ["bio"]}
+    }
+  },
+  "applied": {
+    "schema": "ProfileChange",
+    "payload": {
+      "changeId": "change-example-01",
+      "operationId": "op_profile_example_01",
+      "expectedRevision": "profile-r3",
+      "state": "APPLIED",
+      "stateVersion": "3",
+      "createdAt": "2030-01-01T12:00:00.123456Z",
+      "updatedAt": "2030-01-01T12:00:02.123456Z",
+      "appliedRevision": "profile-r4",
+      "appliedAt": "2030-01-01T12:00:02.123456Z"
+    }
+  },
+  "noLatestChange": {"schema": "LatestProfileChange", "payload": {"change": null}},
+  "invalidInput": {
+    "schema": "ApiError",
+    "payload": {"code": "INVALID_INPUT", "requestId": "req-synthetic", "violations": [{"field": "changes.nickname", "reason": "INVALID"}]}
+  },
+  "conflict": {
+    "schema": "ApiError",
+    "payload": {"code": "REVISION_CONFLICT", "requestId": "req-synthetic-conflict"}
+  }
+}

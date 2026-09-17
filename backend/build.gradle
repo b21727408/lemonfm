@@ -1,0 +1,38 @@
+plugins { id 'java' }
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+        vendor = JvmVendorSpec.ADOPTIUM
+    }
+}
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
+}
+dependencies {
+    implementation platform(libs.spring.bom)
+    implementation libs.spring.web
+    implementation libs.spring.webmvc
+    implementation libs.jackson.databind
+    implementation libs.jackson.jsr310
+    implementation libs.jackson.nullable
+    implementation libs.validation
+    implementation libs.annotation
+    compileOnly libs.servlet
+    testImplementation libs.junit
+    testImplementation libs.hibernate.validator
+    testImplementation libs.jackson.yaml
+    testImplementation libs.json.schema
+    testRuntimeOnly libs.junit.launcher
+}
+sourceSets.main.java.srcDir(rootProject.layout.buildDirectory.dir('generated/http/java/src/main/java'))
+tasks.named('compileJava') { dependsOn ':generateJavaHttp' }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.named('test') {
+    useJUnitPlatform()
+    inputs.files(rootProject.file('contracts/http/public-v1.yaml'),
+        rootProject.file('test/fixtures/profile-wire.json'))
+    workingDir rootProject.projectDir
+    testLogging { events 'failed', 'skipped'; exceptionFormat = 'full' }
+}

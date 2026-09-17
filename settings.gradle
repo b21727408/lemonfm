@@ -1,0 +1,6 @@
+rootProject.name = 'lemonfm'
+include 'backend'
+
+dependencyResolutionManagement {
+    repositories { mavenCentral() }
+}

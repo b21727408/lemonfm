@@ -1,0 +1,4 @@
+{{! Adapted from OpenAPI Generator 7.25.0 (Apache-2.0). Its container branch drops
+    Optional even though initialization and serializers use it. Wrap containers,
+    keeping the upstream scalar branch. Recheck on generator upgrades. }}
+{{#isContainer}}{{#vendorExtensions.x-is-optional}}Optional<{{/vendorExtensions.x-is-optional}}{{baseType}}<{{#isMap}}String, {{/isMap}}{{#items}}{{>serialization/built_value/variable_type}}{{/items}}>{{#vendorExtensions.x-is-optional}}?>{{/vendorExtensions.x-is-optional}}{{/isContainer}}{{^isContainer}}{{{datatypeWithEnum}}}{{/isContainer}}{{#isNullable}}{{^vendorExtensions.x-is-optional}}?{{/vendorExtensions.x-is-optional}}{{/isNullable}}

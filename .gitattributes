@@ -1,0 +1,5 @@
+/packages/api_client/lib/** text eol=lf
+/packages/api_client/test/** text eol=lf
+/tool/** text eol=lf
+/gradlew text eol=lf
+/gradlew.bat text eol=crlf

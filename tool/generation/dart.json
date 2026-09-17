@@ -1,0 +1,11 @@
+{
+  "pubName": "api_client",
+  "pubVersion": "0.1.0",
+  "pubPublishTo": "none",
+  "serializationLibrary": "built_value",
+  "useOptional": true,
+  "patchOnly": false,
+  "enumUnknownDefaultCase": true,
+  "legacyDiscriminatorBehavior": false,
+  "hideGenerationTimestamp": true
+}
